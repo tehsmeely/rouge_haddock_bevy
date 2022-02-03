@@ -1,0 +1,107 @@
+List((
+    texture_width: 80,
+    texture_height: 80,
+    sprites: [
+        //1 Left
+        (
+            x: 0,
+            y: 0,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 20,
+            y: 0,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 40,
+            y: 0,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 60,
+            y: 0,
+            width: 20,
+            height: 20,
+        ),
+        //2 Right
+        (
+            x: 0,
+            y: 20,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 20,
+            y: 20,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 40,
+            y: 20,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 60,
+            y: 20,
+            width: 20,
+            height: 20,
+        ),
+        //3 Down
+        (
+            x: 0,
+            y: 40,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 20,
+            y: 40,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 40,
+            y: 40,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 60,
+            y: 40,
+            width: 20,
+            height: 20,
+        ),
+        //4 Up
+        (
+            x: 0,
+            y: 60,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 20,
+            y: 60,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 40,
+            y: 60,
+            width: 20,
+            height: 20,
+        ),
+        (
+            x: 60,
+            y: 60,
+            width: 20,
+            height: 20,
+        ),
+    ]
+)
+)
