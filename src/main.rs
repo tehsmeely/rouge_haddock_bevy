@@ -1,5 +1,6 @@
+use crate::game::tilemap::{HasTileType, TilePosExt};
 use bevy::prelude::*;
-use bevy_ecs_tilemap::TilemapPlugin;
+use bevy_ecs_tilemap::{MapQuery, TilePos, TilemapPlugin};
 
 mod game;
 mod helpers;
@@ -37,6 +38,15 @@ impl Direction {
             Self::Down => -Vec3::Y,
             Self::Right => Vec3::X,
             Self::Left => -Vec3::X,
+        }
+    }
+
+    fn to_pos_move(&self) -> (i32, i32) {
+        match self {
+            Self::Up => (0, 1),
+            Self::Down => (0, (-1)),
+            Self::Right => (1, 0),
+            Self::Left => ((-1), 0),
         }
     }
 }
@@ -126,7 +136,15 @@ fn camera_follow_system(
 
 fn input_handle_system(
     input: Res<Input<KeyCode>>,
-    mut query: Query<(&mut Facing, &Controlled, &mut Transform, &mut Timer)>,
+    mut query: Query<(
+        &mut Facing,
+        &Controlled,
+        &mut Transform,
+        &mut TilePos,
+        &mut Timer,
+    )>,
+    tile_type_query: Query<(&HasTileType)>,
+    mut map_query: MapQuery,
 ) {
     let new_direction = {
         if input.just_pressed(KeyCode::A) {
@@ -142,13 +160,37 @@ fn input_handle_system(
         }
     };
     if let Some(direction) = &new_direction {
-        for (mut facing, controlled, mut transform, mut timer) in query.iter_mut() {
+        for (mut facing, controlled, mut transform, mut tile_pos, mut timer) in query.iter_mut() {
+            /*
             if controlled.0 {
                 let dur = timer.duration();
                 timer.tick(dur);
                 facing.0 = direction.clone();
                 let speed = 64.0;
                 transform.translation += direction.to_unit_translation() * speed
+            } */
+            println!("D: {:?}", direction);
+            if controlled.0 {
+                let new_tilepos = tile_pos.add(direction.to_pos_move());
+                println!("New Tile Pos: {:?}", new_tilepos);
+                let new_tile_entity = map_query.get_tile_entity(new_tilepos, 0, 0).unwrap();
+                let can_move = match tile_type_query.get(new_tile_entity) {
+                    Ok(HasTileType(tt)) => {
+                        println!("Has Tile Type: {:?}", tt);
+                        tt.can_enter()
+                    }
+                    Err(_) => {
+                        println!("Has No Tile Type");
+                        false
+                    }
+                };
+                if can_move {
+                    *tile_pos = new_tilepos;
+                    transform.translation = tile_pos.to_world_pos();
+                    let dur = timer.duration();
+                    timer.tick(dur);
+                    facing.0 = direction.clone();
+                }
             }
         }
     }
@@ -173,5 +215,6 @@ fn setup(
         .insert(Facing::default())
         .insert(DirectionalAnimation::default())
         .insert(CameraFollow {})
+        .insert(TilePos(2, 2))
         .insert(Controlled(true));
 }
