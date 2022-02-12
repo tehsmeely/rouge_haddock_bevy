@@ -8,7 +8,7 @@ pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;
 
     // TODO: Call this "to_global_position" to ensure non-confusion with local transforms?
-    fn to_world_pos(&self) -> Vec3;
+    fn to_world_pos(&self, z: f32) -> Vec3;
     fn from_world_pos(x: f32, y: f32) -> Self;
 }
 impl TilePosExt for TilePos {
@@ -19,7 +19,7 @@ impl TilePosExt for TilePos {
         )
     }
 
-    fn to_world_pos(&self) -> Vec3 {
+    fn to_world_pos(&self, z: f32) -> Vec3 {
         // TODO: Support some "world_config" param to do cell size and 0,0 offset
         let x_offset = 0.0;
         let y_offset = 0.0;
@@ -30,7 +30,7 @@ impl TilePosExt for TilePos {
         Vec3::new(
             x + x_offset + centre_x_offset,
             y + y_offset + centre_y_offset,
-            0.0,
+            z,
         )
     }
 

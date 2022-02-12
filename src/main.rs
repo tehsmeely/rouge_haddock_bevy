@@ -5,6 +5,7 @@ use simple_logger::SimpleLogger;
 
 mod game;
 mod helpers;
+mod map_gen;
 
 fn main() {
     //SimpleLogger::new().init().unwrap();

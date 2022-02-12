@@ -89,3 +89,41 @@ impl DirectionalAnimation {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct MouseClickEvent {
+    pub button: MouseButton,
+    pub world_position: Vec3,
+}
+
+#[derive(Component, Debug)]
+pub struct MovementAnimate {
+    destination_position: Vec3,
+    factor: f32, //Per bevy lerp doc: values 0.0-1.0, is ratio of mix from a to b. 1.0 would result in immediate b result
+    pub active: bool,
+}
+
+impl Default for MovementAnimate {
+    fn default() -> Self {
+        Self {
+            destination_position: Vec3::ZERO,
+            factor: 0.5,
+            active: false,
+        }
+    }
+}
+
+impl MovementAnimate {
+    pub fn lerp(&self, from: &Vec3) -> Vec3 {
+        from.lerp(self.destination_position, self.factor)
+    }
+
+    pub fn set(&mut self, destination_pos: Vec3) {
+        self.destination_position = destination_pos;
+        self.active = true
+    }
+
+    pub fn finished(&self, from: &Vec3) -> bool {
+        self.destination_position.eq(from)
+    }
+}

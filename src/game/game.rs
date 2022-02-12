@@ -24,10 +24,11 @@ impl Plugin for GamePlugin {
             .add_system(input_handle_system.label("input"))
             .add_system(camera_follow_system.after("movement"))
             .add_system(debug_print_input_system)
-            .add_system(input_event_system.label("movement"))
+            .add_system(player_movement_system.label("movement"))
             .add_system(global_turn_counter_system.after("movement"))
             .add_system(enemy_system.after("movement"))
             .add_system(mouse_click_system.label("input"))
+            .add_system(animate_move_system.after("movement"))
             .add_system_set(
                 SystemSet::new()
                     .with_system(mouse_click_debug_system.after("input"))
@@ -74,6 +75,18 @@ fn animate_sprite_system(
     }
 }
 
+fn animate_move_system(mut query: Query<(&mut Transform, &mut MovementAnimate)>) {
+    for (mut transform, mut movement_animate) in query.iter_mut() {
+        if movement_animate.active {
+            transform.translation = movement_animate.lerp(&transform.translation);
+
+            if movement_animate.finished(&transform.translation) {
+                movement_animate.active = false;
+            }
+        }
+    }
+}
+
 fn camera_follow_system(
     mut query: QuerySet<(
         QueryState<(&Transform, &CameraFollow)>,
@@ -99,12 +112,6 @@ fn camera_follow_system(
             }
         }
     }
-}
-
-//TODO: Move elsewhere
-struct MouseClickEvent {
-    button: MouseButton,
-    world_position: Vec3,
 }
 
 fn mouse_click_system(
@@ -200,12 +207,20 @@ fn enemy_system(
     mut game_event_writer: EventWriter<GameEvent>,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
-    mut query: Query<(&mut TilePos, &mut Transform, &mut Facing), With<Enemy>>,
+    mut query: Query<
+        (
+            &mut TilePos,
+            &mut Transform,
+            &mut Facing,
+            &mut MovementAnimate,
+        ),
+        With<Enemy>,
+    >,
     mut map_query: MapQuery,
     tile_type_query: Query<&HasTileType>,
 ) {
     if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
-        for (mut tile_pos, mut transform, mut facing) in query.iter_mut() {
+        for (mut tile_pos, mut transform, mut facing, mut move_animation) in query.iter_mut() {
             let direction = MapDirection::rand_choice();
 
             move_map_object(
@@ -214,27 +229,25 @@ fn enemy_system(
                 &mut map_query,
                 &mut facing,
                 &mut transform,
+                &mut move_animation,
                 &tile_type_query,
             );
-
-            /*
-            *tile_pos = tile_pos.add(direction.to_pos_move());
-            let z = transform.translation.z;
-            transform.translation = tile_pos.to_world_pos();
-            transform.translation.z = z;
-            facing.0 = direction.clone();
-            println!("Now at {:?}", tile_pos);
-             */
         }
         local_turn_counter.incr();
         game_event_writer.send(GameEvent::PhaseComplete(GamePhase::EnemyMovement));
     }
 }
 
-fn input_event_system(
+fn player_movement_system(
     mut game_event_writer: EventWriter<GameEvent>,
     mut input_events: EventReader<InputEvent>,
-    mut query: Query<(&mut Facing, &Controlled, &mut Transform, &mut TilePos)>,
+    mut query: Query<(
+        &mut Facing,
+        &Controlled,
+        &mut Transform,
+        &mut TilePos,
+        &mut MovementAnimate,
+    )>,
     tile_type_query: Query<(&HasTileType)>,
     mut map_query: MapQuery,
     global_turn_counter: Res<GlobalTurnCounter>,
@@ -243,7 +256,9 @@ fn input_event_system(
     for event in input_events.iter() {
         match event {
             InputEvent::MoveDirection(direction) => {
-                for (mut facing, controlled, mut transform, mut tile_pos) in query.iter_mut() {
+                for (mut facing, controlled, mut transform, mut tile_pos, mut movement_animate) in
+                    query.iter_mut()
+                {
                     let can_take_turn = global_turn_counter
                         .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                     if can_take_turn && controlled.0 {
@@ -253,6 +268,7 @@ fn input_event_system(
                             &mut map_query,
                             &mut facing,
                             &mut transform,
+                            &mut movement_animate,
                             &tile_type_query,
                         );
                         local_turn_counter.incr();
@@ -273,6 +289,7 @@ fn move_map_object(
     map_query: &mut MapQuery,
     facing: &mut Facing,
     transform: &mut Transform,
+    move_animation: &mut MovementAnimate,
     tile_type_query: &Query<(&HasTileType)>,
 ) {
     let new_tilepos = current_tile_pos.add(move_direction.to_pos_move());
@@ -285,9 +302,10 @@ fn move_map_object(
     facing.0 = move_direction.clone();
     if can_move {
         *current_tile_pos = new_tilepos;
-        let z = transform.translation.z;
-        transform.translation = new_tilepos.to_world_pos();
-        transform.translation.z = z;
+        //let z = transform.translation.z;
+        //transform.translation = new_tilepos.to_world_pos();
+        //transform.translation.z = z;
+        move_animation.set(new_tilepos.to_world_pos(transform.translation.z));
         facing.0 = move_direction.clone();
         println!("Now at {:?}", current_tile_pos);
     }
@@ -322,11 +340,11 @@ fn setup(
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
     let tile_pos = TilePos(4, 3);
-    let transform = tile_pos.to_world_pos();
+    let start_pos = tile_pos.to_world_pos(10.0);
     commands
         .spawn_bundle(SpriteSheetBundle {
             texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_xyz(transform.x, transform.y, 10.),
+            transform: Transform::from_translation(start_pos), //from_xyz(transform.x, transform.y, 10.0),
             ..Default::default()
         })
         .insert(Timer::from_seconds(0.1, true))
@@ -337,7 +355,8 @@ fn setup(
             y_threshold: 300.0,
         })
         .insert(tile_pos)
-        .insert(Controlled(true));
+        .insert(Controlled(true))
+        .insert(MovementAnimate::default());
 }
 
 fn add_sharks(
@@ -348,18 +367,21 @@ fn add_sharks(
     let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
-    let tile_pos = TilePos(8, 9);
-    let transform = tile_pos.to_world_pos();
-    commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_xyz(transform.x, transform.y, 10.),
-            ..Default::default()
-        })
-        .insert(Timer::from_seconds(0.1, true))
-        .insert(Facing::default())
-        .insert(DirectionalAnimation::default())
-        .insert(tile_pos)
-        .insert(Enemy {})
-        .insert(Shark {});
+    for (x, y) in [(8, 9), (12, 12), (3, 10)].into_iter() {
+        let tile_pos = TilePos(x, y);
+        let start_pos = tile_pos.to_world_pos(10.0);
+        commands
+            .spawn_bundle(SpriteSheetBundle {
+                texture_atlas: atlas_handle.clone(),
+                transform: Transform::from_translation(start_pos),
+                ..Default::default()
+            })
+            .insert(Timer::from_seconds(0.1, true))
+            .insert(Facing::default())
+            .insert(DirectionalAnimation::default())
+            .insert(tile_pos)
+            .insert(Enemy {})
+            .insert(Shark {})
+            .insert(MovementAnimate::default());
+    }
 }
