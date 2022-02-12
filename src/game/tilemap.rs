@@ -7,7 +7,9 @@ pub struct GameTilemapPlugin;
 pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;
 
+    // TODO: Call this "to_global_position" to ensure non-confusion with local transforms?
     fn to_world_pos(&self) -> Vec3;
+    fn from_world_pos(x: f32, y: f32) -> Self;
 }
 impl TilePosExt for TilePos {
     fn add(&self, add: (i32, i32)) -> Self {
@@ -19,7 +21,34 @@ impl TilePosExt for TilePos {
 
     fn to_world_pos(&self) -> Vec3 {
         // TODO: Support some "world_config" param to do cell size and 0,0 offset
-        Vec3::new(self.0 as f32 * 64.0, self.1 as f32 * 64.0, 0.0)
+        let x_offset = 0.0;
+        let y_offset = 0.0;
+        let centre_x_offset = 32.0;
+        let centre_y_offset = 32.0;
+        let x = self.0 as f32 * 64.0;
+        let y = self.1 as f32 * 64.0;
+        Vec3::new(
+            x + x_offset + centre_x_offset,
+            y + y_offset + centre_y_offset,
+            0.0,
+        )
+    }
+
+    fn from_world_pos(x: f32, y: f32) -> Self {
+        //Anything inside the tile width/height  counts as the tile
+        // TODO: As with [to_world_pos], support some world_config param
+        let x_offset = 0.0;
+        let y_offset = 0.0;
+        let x_size = 64.0;
+        let y_size = 64.0;
+
+        let x = (x - x_offset).div_euclid(x_size);
+        let y = (y - y_offset).div_euclid(y_size);
+        if x >= 0.0 && y >= 0.0 {
+            Self(x as u32, y as u32)
+        } else {
+            Self(0, 0)
+        }
     }
 }
 
@@ -61,8 +90,6 @@ impl Plugin for GameTilemapPlugin {
     }
 }
 fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_query: MapQuery) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-
     let texture_handle = asset_server.load("sprites/tilemap_spritesheet.png");
 
     // Create map entity and component:
@@ -116,7 +143,7 @@ fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_
     commands
         .entity(map_entity)
         .insert(map)
-        .insert(Transform::from_xyz(-128.0, -128.0, 0.0))
+        .insert(Transform::from_xyz(0.0, 0.0, 0.0))
         .insert(GlobalTransform::default());
 }
 
