@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_ecs_tilemap::Tile;
 
 #[derive(Debug, Component)]
 pub struct Controlled(pub bool);
@@ -125,5 +126,40 @@ impl MovementAnimate {
 
     pub fn finished(&self, from: &Vec3) -> bool {
         self.destination_position.eq(from)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TileType {
+    WALL,
+    WATER,
+}
+
+impl TileType {
+    pub fn can_enter(&self) -> bool {
+        match self {
+            Self::WALL => false,
+            Self::WATER => true,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Self::WALL => "X",
+            Self::WATER => " ",
+        }
+    }
+
+    pub fn to_raw_tile(&self) -> Tile {
+        match self {
+            Self::WATER => Tile {
+                texture_index: 0,
+                ..Default::default()
+            },
+            Self::WALL => Tile {
+                texture_index: 1,
+                ..Default::default()
+            },
+        }
     }
 }

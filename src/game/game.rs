@@ -1,17 +1,20 @@
-use super::{
-    components::*,
-    enemy::{Enemy, Shark},
-    events::{GameEvent, InputEvent},
-    tilemap::{HasTileType, TilePosExt, TileType},
-    turn::{GamePhase, GlobalTurnCounter, TurnCounter},
-};
-use crate::helpers::error_handling::ResultOkLog;
 use bevy::ecs::schedule::{IntoRunCriteria, RunCriteriaDescriptorOrLabel};
 use bevy::ecs::system::QuerySingleError;
 use bevy::prelude::*;
 use bevy::reflect::Map;
 use bevy_ecs_tilemap::{MapQuery, TilePos, TilemapPlugin};
 use log::info;
+
+use crate::game::components::TileType;
+use crate::helpers::error_handling::ResultOkLog;
+
+use super::{
+    components::*,
+    enemy::{Enemy, Shark},
+    events::{GameEvent, InputEvent},
+    tilemap::{HasTileType, TilePosExt},
+    turn::{GamePhase, GlobalTurnCounter, TurnCounter},
+};
 
 pub struct GamePlugin;
 
@@ -352,7 +355,7 @@ fn setup(
         .insert(DirectionalAnimation::default())
         .insert(CameraFollow {
             x_threshold: 300.0,
-            y_threshold: 300.0,
+            y_threshold: 200.0,
         })
         .insert(tile_pos)
         .insert(Controlled(true))

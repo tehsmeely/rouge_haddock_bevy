@@ -2,6 +2,8 @@ use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use num::Integer;
 
+use crate::game::components::TileType;
+
 pub struct GameTilemapPlugin;
 
 pub trait TilePosExt {
@@ -48,34 +50,6 @@ impl TilePosExt for TilePos {
             Self(x as u32, y as u32)
         } else {
             Self(0, 0)
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum TileType {
-    WALL,
-    WATER,
-}
-
-impl TileType {
-    pub fn can_enter(&self) -> bool {
-        match self {
-            Self::WALL => false,
-            Self::WATER => true,
-        }
-    }
-
-    fn to_raw_tile(&self) -> Tile {
-        match self {
-            Self::WATER => Tile {
-                texture_index: 0,
-                ..Default::default()
-            },
-            Self::WALL => Tile {
-                texture_index: 1,
-                ..Default::default()
-            },
         }
     }
 }
