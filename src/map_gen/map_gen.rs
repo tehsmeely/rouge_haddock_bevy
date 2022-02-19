@@ -1,9 +1,11 @@
 use super::cell_map::CellMap;
 use crate::game::components::TileType;
 use array2d::Array2D;
+use log::info;
 use num::range;
 use rand::prelude::SliceRandom;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::time::Instant;
 
 #[derive(Debug)]
 enum AbSelector {
@@ -156,7 +158,7 @@ impl Grid {
         self.draw_internal(&HashMap::new())
     }
 
-    fn find_start(&mut self) -> (i32, i32) {
+    fn find_start(&mut self) -> Option<(i32, i32)> {
         // Traverse from bottom up, starting with the middle column, until we find an open cell
         let x0 = self.grid_size.0 / 2;
         let y0 = self.grid_size.1 - 1;
@@ -166,11 +168,12 @@ impl Grid {
                 let x = (x0 as isize + to_half_signed(i as isize)) as usize;
                 let y = y0 as usize - (j as usize);
                 if self.grid[(x, y)].get(&self.current) == &TileType::WATER {
-                    return (x as i32, y as i32);
+                    return Some((x as i32, y as i32));
                 }
             }
         }
-        panic!("Did not find start!");
+        info!("Did not find start!");
+        None
     }
 
     fn pos_is_valid_and(&self, pos: (i32, i32), and: TileType) -> bool {
@@ -238,9 +241,12 @@ fn to_half_signed(i: isize) -> isize {
 
 pub fn get_cell_map(min_size: usize, max_tries: i32) -> CellMap<i32> {
     for _i in 0..max_tries {
-        let map = run_single();
-        if map.cell_count() >= min_size {
-            return map;
+        let start = Instant::now();
+        let map = run_single(min_size);
+        let duration = start.elapsed();
+        info!("Possibly invalid map generated in : {:?}", duration);
+        if let Some(valid_map) = map {
+            return valid_map;
         }
     }
     panic!(
@@ -249,21 +255,23 @@ pub fn get_cell_map(min_size: usize, max_tries: i32) -> CellMap<i32> {
     );
 }
 
-pub fn run_single() -> CellMap<i32> {
+fn run_single(min_size: usize) -> Option<CellMap<i32>> {
     let mut grid = Grid::new((20, 20));
     grid.draw();
     for _i in 0..6 {
         grid.update();
     }
     grid.draw();
-    let start = grid.find_start();
-    println!("Start: {:?}", start);
-
+    let start = grid.find_start()?;
+    //println!("Start: {:?}", start);
     let cell_map = CellMap::new(grid.map_and_cull(start));
-    println!("cell_map: {:?}", cell_map);
+    if cell_map.cell_count() < min_size {
+        return None;
+    }
+    //println!("cell_map: {:?}", cell_map);
     let normalised_cell_map = cell_map.normalise();
-    println!("normalise_cell_map: {:?}", normalised_cell_map);
-    normalised_cell_map
+    //println!("normalise_cell_map: {:?}", normalised_cell_map);
+    Some(normalised_cell_map)
 }
 
 pub fn run_single_manual() {

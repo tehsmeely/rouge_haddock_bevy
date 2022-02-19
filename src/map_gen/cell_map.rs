@@ -1,4 +1,6 @@
+use rand::prelude::SliceRandom;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 #[derive(Debug)]
 pub struct CellMap<V>(pub HashMap<(i32, i32), V>);
@@ -70,5 +72,39 @@ where
             }
         }
         None
+    }
+}
+
+impl CellMap<i32> {
+    pub fn distribute_points_by_cost(&self, n: usize) -> Vec<(i32, i32)> {
+        // Find min, max, and mid cost
+        // Fetch all cells where min < cost < max (i.e drop min/max)
+        // pick with weigh: 1/ distance from mid
+        // TODO: Error handle here.
+        let min_cost = self.0.values().min().cloned().unwrap();
+        let max_cost = self.0.values().max().cloned().unwrap();
+        let mid_cost = min_cost + (max_cost - min_cost) / 2;
+        let positions: Vec<(i32, i32)> = self
+            .0
+            .iter()
+            .filter_map(|(k, v)| {
+                if *v > min_cost && *v < max_cost {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let weights = |pos: &(i32, i32)| match self.0.get(pos) {
+            Some(val) => mid_cost - (mid_cost - val).abs(),
+            None => 0,
+        };
+        let mut rng = rand::thread_rng();
+        positions
+            .choose_multiple_weighted(&mut rng, n, weights)
+            .unwrap()
+            .cloned()
+            .collect()
     }
 }

@@ -13,17 +13,12 @@ mod helpers;
 mod map_gen;
 
 fn main() {
-    let run_game = true;
-    if run_game {
-        App::new()
-            .add_plugins(DefaultPlugins)
-            .add_plugin(TilemapPlugin)
-            .add_plugin(crate::game::Plugin)
-            .add_system(setup_window_title)
-            .run();
-    } else {
-        crate::map_gen::run_single();
-    }
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugin(TilemapPlugin)
+        .add_plugin(crate::game::Plugin)
+        .add_system(setup_window_title)
+        .run();
 }
 
 struct ActiveSystem(bool);

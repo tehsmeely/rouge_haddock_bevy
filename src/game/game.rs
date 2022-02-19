@@ -15,13 +15,13 @@ use super::{
     tilemap::{HasTileType, TilePosExt},
     turn::{GamePhase, GlobalTurnCounter, TurnCounter},
 };
+use crate::map_gen::cell_map::CellMap;
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup)
-            .add_startup_system(add_sharks)
             .add_system(animate_sprite_system)
             .add_system(input_handle_system.label("input"))
             .add_system(camera_follow_system.after("movement"))
@@ -244,39 +244,61 @@ fn enemy_system(
 fn player_movement_system(
     mut game_event_writer: EventWriter<GameEvent>,
     mut input_events: EventReader<InputEvent>,
-    mut query: Query<(
-        &mut Facing,
-        &Controlled,
-        &mut Transform,
-        &mut TilePos,
-        &mut MovementAnimate,
+    mut query: QuerySet<(
+        QueryState<
+            (
+                &mut Facing,
+                &mut Transform,
+                &mut TilePos,
+                &mut MovementAnimate,
+            ),
+            With<Player>,
+        >,
+        QueryState<(Entity, &TilePos, &mut Health)>,
     )>,
     tile_type_query: Query<(&HasTileType)>,
     mut map_query: MapQuery,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
+    mut commands: Commands,
 ) {
     for event in input_events.iter() {
         match event {
             InputEvent::MoveDirection(direction) => {
-                for (mut facing, controlled, mut transform, mut tile_pos, mut movement_animate) in
-                    query.iter_mut()
-                {
-                    let can_take_turn = global_turn_counter
-                        .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
-                    if can_take_turn && controlled.0 {
-                        move_map_object(
-                            &mut tile_pos,
-                            &direction,
-                            &mut map_query,
-                            &mut facing,
-                            &mut transform,
-                            &mut movement_animate,
-                            &tile_type_query,
-                        );
-                        local_turn_counter.incr();
-                        game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                let can_take_turn = global_turn_counter
+                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                if can_take_turn {
+                    let current_tile_pos = {
+                        let (_, _, pos, _) = query.q0().single();
+                        pos.clone()
+                    };
+                    let can_move_with_others = check_move_attack(
+                        &current_tile_pos,
+                        &direction,
+                        &mut query.q1(),
+                        &mut commands,
+                    );
+
+                    if can_move_with_others {
+                        // We need to use for here as using [single_mut()] causes the query set
+                        // state to be freed. Meaning the query borrows are after free.
+                        // Perhaps there's a high tech way round it?
+                        for (mut facing, mut transform, mut tile_pos, mut movement_animate) in
+                            query.q0().iter_mut()
+                        {
+                            move_map_object(
+                                &mut tile_pos,
+                                &direction,
+                                &mut map_query,
+                                &mut facing,
+                                &mut transform,
+                                &mut movement_animate,
+                                &tile_type_query,
+                            );
+                        }
                     }
+                    local_turn_counter.incr();
+                    game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 }
             }
             InputEvent::TurnDirection(_dir) => (),
@@ -284,6 +306,33 @@ fn player_movement_system(
             InputEvent::Power => (),
         }
     }
+}
+
+fn check_move_attack(
+    current_tile_pos: &TilePos,
+    move_direction: &MapDirection,
+    tile_resident_query: &mut Query<(Entity, &TilePos, &mut Health)>,
+    commands: &mut Commands,
+) -> bool {
+    //Check if something is in the cell we want to move to, and maybe process outcome
+    let new_tilepos = current_tile_pos.add(move_direction.to_pos_move());
+    for (entity, tilepos, mut health) in tile_resident_query.iter_mut() {
+        if tilepos.eq(&new_tilepos) {
+            println!(
+                "Hitting resident at {:?}. It's health: {:?}",
+                tilepos, health
+            );
+            health.decr();
+            println!("Now: {:?}", health);
+            return if health.hp == 0 {
+                commands.entity(entity).despawn();
+                true
+            } else {
+                false
+            };
+        }
+    }
+    return true;
 }
 
 fn move_map_object(
@@ -305,9 +354,6 @@ fn move_map_object(
     facing.0 = move_direction.clone();
     if can_move {
         *current_tile_pos = new_tilepos;
-        //let z = transform.translation.z;
-        //transform.translation = new_tilepos.to_world_pos();
-        //transform.translation.z = z;
         move_animation.set(new_tilepos.to_world_pos(transform.translation.z));
         facing.0 = move_direction.clone();
         println!("Now at {:?}", current_tile_pos);
@@ -317,7 +363,7 @@ fn move_map_object(
 fn debug_print_input_system(
     mut query: QuerySet<(
         QueryState<(&Transform, &GlobalTransform)>,
-        QueryState<(&Controlled)>,
+        QueryState<(&Player)>,
     )>,
     //query: Query<(&Transform, &GlobalTransform)>,
     input: Res<Input<KeyCode>>,
@@ -325,10 +371,6 @@ fn debug_print_input_system(
     if input.just_pressed(KeyCode::P) {
         for (trans, global_trans) in query.q0().iter() {
             println!("{:?} (Global: {:?}", trans, global_trans)
-        }
-    } else if input.just_pressed(KeyCode::C) {
-        for (controlled) in query.q1().iter() {
-            println!("{:?}", controlled)
         }
     }
 }
@@ -339,7 +381,19 @@ fn setup(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     map_query: MapQuery,
 ) {
-    let cell_map = super::tilemap::init_tilemap(&mut commands, &asset_server, map_query);
+    let border_size = 20usize;
+    let cell_map: CellMap<i32> = {
+        let normalised = crate::map_gen::get_cell_map(50, 20);
+        normalised.offset((border_size as i32, border_size as i32))
+    };
+    println!("Final CellMap: {:?}", cell_map);
+    super::tilemap::init_tilemap(
+        &mut commands,
+        &asset_server,
+        map_query,
+        &cell_map,
+        border_size,
+    );
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
@@ -348,48 +402,38 @@ fn setup(
         let start_point = cell_map.start_point().unwrap_or((1, 1));
         TilePos(start_point.0 as u32, start_point.1 as u32)
     };
-    let start_pos = start_point.to_world_pos(10.0);
     commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(start_pos), //from_xyz(transform.x, transform.y, 10.0),
-            ..Default::default()
-        })
-        .insert(Timer::from_seconds(0.1, true))
-        .insert(Facing::default())
-        .insert(DirectionalAnimation::default())
+        .spawn_bundle(TileResidentBundle::new(3, start_point, atlas_handle))
         .insert(CameraFollow {
             x_threshold: 300.0,
             y_threshold: 200.0,
         })
-        .insert(start_point)
-        .insert(Controlled(true))
-        .insert(MovementAnimate::default());
+        .insert(Player);
+
+    add_sharks(
+        &mut commands,
+        &asset_server,
+        &mut texture_atlases,
+        &cell_map,
+    );
 }
 
 fn add_sharks(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    cell_map: &CellMap<i32>,
 ) {
     let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
-    for (x, y) in [(8, 9), (12, 12), (3, 10)].into_iter() {
-        let tile_pos = TilePos(x, y);
-        let start_pos = tile_pos.to_world_pos(10.0);
+    let spawn_positions = cell_map.distribute_points_by_cost(3);
+    //for (x, y) in [(8, 9), (12, 12), (3, 10)].into_iter() {
+    for (x, y) in spawn_positions.into_iter() {
+        let tile_pos = TilePos(x as u32, y as u32);
         commands
-            .spawn_bundle(SpriteSheetBundle {
-                texture_atlas: atlas_handle.clone(),
-                transform: Transform::from_translation(start_pos),
-                ..Default::default()
-            })
-            .insert(Timer::from_seconds(0.1, true))
-            .insert(Facing::default())
-            .insert(DirectionalAnimation::default())
-            .insert(tile_pos)
+            .spawn_bundle(TileResidentBundle::new(1, tile_pos, atlas_handle.clone()))
             .insert(Enemy {})
-            .insert(Shark {})
-            .insert(MovementAnimate::default());
+            .insert(Shark {});
     }
 }

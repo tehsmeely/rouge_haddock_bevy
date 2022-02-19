@@ -65,15 +65,10 @@ pub fn init_tilemap(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     mut map_query: MapQuery,
-) -> CellMap<i32> {
+    cell_map: &CellMap<i32>,
+    border_size: usize,
+) {
     let texture_handle = asset_server.load("sprites/tilemap_spritesheet.png");
-    let border_size = 20usize;
-
-    let cell_map: CellMap<i32> = {
-        let normalised = crate::map_gen::get_cell_map(10, 10);
-        normalised.offset((border_size as i32, border_size as i32))
-    };
-    println!("Final CellMap: {:?}", cell_map);
 
     // Create map entity and component:
     let map_entity = commands.spawn().id();
@@ -156,8 +151,6 @@ pub fn init_tilemap(
         .insert(map)
         .insert(Transform::from_xyz(0.0, 0.0, 0.0))
         .insert(GlobalTransform::default());
-
-    return cell_map;
 }
 
 const DEBUG_MAP: [&str; 18] = [

@@ -1,8 +1,9 @@
+use crate::game::tilemap::TilePosExt;
 use bevy::prelude::*;
-use bevy_ecs_tilemap::Tile;
+use bevy_ecs_tilemap::{Tile, TilePos};
 
 #[derive(Debug, Component)]
-pub struct Controlled(pub bool);
+pub struct Player;
 
 #[derive(Debug, Component)]
 pub struct CameraFollow {
@@ -160,6 +161,57 @@ impl TileType {
                 texture_index: 1,
                 ..Default::default()
             },
+        }
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct Health {
+    pub hp: usize,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self { hp: 1 }
+    }
+}
+
+impl Health {
+    pub fn decr(&mut self) {
+        let d = 1;
+        if self.hp >= d {
+            self.hp = self.hp.overflowing_sub(d).0;
+        }
+    }
+}
+
+#[derive(Bundle, Default)]
+pub struct TileResidentBundle {
+    #[bundle]
+    sprite_sheet_bundle: SpriteSheetBundle,
+    timer: Timer,
+    facing: Facing,
+    directional_animation: DirectionalAnimation,
+    tile_pos: TilePos,
+    movement_animate: MovementAnimate,
+    health: Health,
+}
+
+impl TileResidentBundle {
+    pub fn new(initial_hp: usize, tile_pos: TilePos, atlas_handle: Handle<TextureAtlas>) -> Self {
+        let start_pos = tile_pos.to_world_pos(10.0);
+        Self {
+            sprite_sheet_bundle: SpriteSheetBundle {
+                texture_atlas: atlas_handle.clone(),
+                transform: Transform::from_translation(start_pos),
+                ..Default::default()
+            },
+            timer: Timer::from_seconds(0.1, true),
+            facing: (Facing::default()),
+            directional_animation: DirectionalAnimation::default(),
+            tile_pos: (tile_pos),
+            movement_animate: (MovementAnimate::default()),
+            health: Health { hp: initial_hp },
         }
     }
 }
