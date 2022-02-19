@@ -20,8 +20,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(super::tilemap::GameTilemapPlugin)
-            .add_startup_system(setup)
+        app.add_startup_system(setup)
             .add_startup_system(add_sharks)
             .add_system(animate_sprite_system)
             .add_system(input_handle_system.label("input"))
@@ -41,6 +40,7 @@ impl Plugin for GamePlugin {
             .add_event::<super::events::InputEvent>()
             .add_event::<MouseClickEvent>()
             .insert_resource(GlobalTurnCounter::default());
+        super::tilemap::build(app);
     }
 }
 
@@ -337,13 +337,18 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    map_query: MapQuery,
 ) {
+    let cell_map = super::tilemap::init_tilemap(&mut commands, &asset_server, map_query);
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
-    let tile_pos = TilePos(4, 3);
-    let start_pos = tile_pos.to_world_pos(10.0);
+    let start_point = {
+        let start_point = cell_map.start_point().unwrap_or((1, 1));
+        TilePos(start_point.0 as u32, start_point.1 as u32)
+    };
+    let start_pos = start_point.to_world_pos(10.0);
     commands
         .spawn_bundle(SpriteSheetBundle {
             texture_atlas: atlas_handle.clone(),
@@ -357,7 +362,7 @@ fn setup(
             x_threshold: 300.0,
             y_threshold: 200.0,
         })
-        .insert(tile_pos)
+        .insert(start_point)
         .insert(Controlled(true))
         .insert(MovementAnimate::default());
 }

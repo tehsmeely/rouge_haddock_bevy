@@ -3,8 +3,7 @@ use bevy_ecs_tilemap::prelude::*;
 use num::Integer;
 
 use crate::game::components::TileType;
-
-pub struct GameTilemapPlugin;
+use crate::map_gen::cell_map::CellMap;
 
 pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;
@@ -57,21 +56,38 @@ impl TilePosExt for TilePos {
 #[derive(Debug, Component)]
 pub struct HasTileType(pub TileType);
 
-impl Plugin for GameTilemapPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_system(crate::helpers::texture::set_texture_filters_to_nearest)
-            .add_startup_system(init_tilemap);
-    }
+pub fn build(app: &mut App) {
+    app.add_system(crate::helpers::texture::set_texture_filters_to_nearest);
+    //.add_startup_system(init_tilemap);
 }
-fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_query: MapQuery) {
+
+pub fn init_tilemap(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    mut map_query: MapQuery,
+) -> CellMap<i32> {
     let texture_handle = asset_server.load("sprites/tilemap_spritesheet.png");
+    let border_size = 20usize;
+
+    let cell_map: CellMap<i32> = {
+        let normalised = crate::map_gen::get_cell_map(10, 10);
+        normalised.offset((border_size as i32, border_size as i32))
+    };
+    println!("Final CellMap: {:?}", cell_map);
 
     // Create map entity and component:
     let map_entity = commands.spawn().id();
     let mut map = Map::new(0u16, map_entity);
 
     let square_chunk_size = 8u32;
-    let map_tile_dims = (DEBUG_MAP[0].len() as u32, DEBUG_MAP.len() as u32);
+    //let map_tile_dims = (DEBUG_MAP[0].len() as u32, DEBUG_MAP.len() as u32);
+    let map_tile_dims = {
+        let rect_size = cell_map.rect_size();
+        let w = rect_size.0 + 2 * border_size;
+        let h = rect_size.1 + 2 * border_size;
+        println!("Rect Size: {:?}, World Size: {:?}", rect_size, (w, h));
+        (w as u32, h as u32)
+    };
     let map_chunk_dims = (
         map_tile_dims.0.div_ceil(&square_chunk_size),
         map_tile_dims.1.div_ceil(&square_chunk_size),
@@ -79,7 +95,7 @@ fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_
 
     // Creates a new layer builder with a layer entity.
     let (mut layer_builder, _): (LayerBuilder<TileBundle>, Entity) = LayerBuilder::new(
-        &mut commands,
+        commands,
         LayerSettings::new(
             MapSize(map_chunk_dims.0, map_chunk_dims.1),
             ChunkSize(square_chunk_size, square_chunk_size),
@@ -89,6 +105,26 @@ fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_
         0u16,
         0u16,
     );
+
+    for j in 0..map_tile_dims.1 {
+        for i in 0..map_tile_dims.0 {
+            let tile_type = match cell_map.contains(&(i as i32, j as i32)) {
+                true => TileType::WATER,
+                false => TileType::WALL,
+            };
+            //print!("{}", tile_type.to_str());
+            print!("{:?}", (i, j));
+            let pos = TilePos(i as u32, j as u32);
+            layer_builder
+                .set_tile(pos.clone(), tile_type.to_raw_tile().into())
+                .unwrap();
+            let tile_entity = layer_builder.get_tile_entity(commands, pos).unwrap();
+            commands.entity(tile_entity).insert(HasTileType(tile_type));
+        }
+        println!();
+    }
+
+    /*
     for (j, row) in DEBUG_MAP.iter().enumerate() {
         for (i, c) in row.chars().enumerate() {
             let pos = TilePos(i as u32, j as u32);
@@ -104,13 +140,14 @@ fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_
             commands.entity(tile_entity).insert(HasTileType(tile_type));
         }
     }
+     */
 
     // Builds the layer.
     // Note: Once this is called you can no longer edit the layer until a hard sync in bevy.
-    let layer_entity = map_query.build_layer(&mut commands, layer_builder, texture_handle);
+    let layer_entity = map_query.build_layer(commands, layer_builder, texture_handle);
 
     // Required to keep track of layers for a map internally.
-    map.add_layer(&mut commands, 0u16, layer_entity);
+    map.add_layer(commands, 0u16, layer_entity);
 
     // Spawn Map
     // Required in order to use map_query to retrieve layers/tiles.
@@ -119,6 +156,8 @@ fn init_tilemap(mut commands: Commands, asset_server: Res<AssetServer>, mut map_
         .insert(map)
         .insert(Transform::from_xyz(0.0, 0.0, 0.0))
         .insert(GlobalTransform::default());
+
+    return cell_map;
 }
 
 const DEBUG_MAP: [&str; 18] = [

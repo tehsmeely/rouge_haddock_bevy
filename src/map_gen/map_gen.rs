@@ -1,3 +1,4 @@
+use super::cell_map::CellMap;
 use crate::game::components::TileType;
 use array2d::Array2D;
 use num::range;
@@ -230,25 +231,25 @@ impl Grid {
     }
 }
 
-fn normalise_cell_map<V>(map: HashMap<(i32, i32), V>) -> HashMap<(i32, i32), V> {
-    //Adjust a hashmap of cell positions so they align with 0 on x and y
-    let x_offset = map.keys().map(|(x, _)| x).min().cloned().unwrap_or(0);
-    let y_offset = map.keys().map(|(_, y)| y).min().cloned().unwrap_or(0);
-    if x_offset != 0 && y_offset != 0 {
-        map.into_iter()
-            .map(|((x, y), v)| ((x - x_offset, y - y_offset), v))
-            .collect()
-    } else {
-        map
-    }
-}
-
 fn to_half_signed(i: isize) -> isize {
     let sign = if i % 2 == 0 { 1 } else { (-1) };
     (i / 2) * sign
 }
 
-pub fn run_single() {
+pub fn get_cell_map(min_size: usize, max_tries: i32) -> CellMap<i32> {
+    for _i in 0..max_tries {
+        let map = run_single();
+        if map.cell_count() >= min_size {
+            return map;
+        }
+    }
+    panic!(
+        "Unable to generate big enough cell map within [max_tries]({})",
+        max_tries
+    );
+}
+
+pub fn run_single() -> CellMap<i32> {
     let mut grid = Grid::new((20, 20));
     grid.draw();
     for _i in 0..6 {
@@ -258,10 +259,11 @@ pub fn run_single() {
     let start = grid.find_start();
     println!("Start: {:?}", start);
 
-    let cell_map = grid.map_and_cull(start);
+    let cell_map = CellMap::new(grid.map_and_cull(start));
     println!("cell_map: {:?}", cell_map);
-    let normalised_cell_map = normalise_cell_map(cell_map);
+    let normalised_cell_map = cell_map.normalise();
     println!("normalise_cell_map: {:?}", normalised_cell_map);
+    normalised_cell_map
 }
 
 pub fn run_single_manual() {

@@ -13,7 +13,7 @@ mod helpers;
 mod map_gen;
 
 fn main() {
-    let run_game = false;
+    let run_game = true;
     if run_game {
         App::new()
             .add_plugins(DefaultPlugins)
@@ -39,7 +39,7 @@ fn setup_window_title(
     mut active_system: Local<ActiveSystem>,
 ) {
     // If you set title too soon, it causes the window to hang ...
-    // TODO: Merge this with omse setup/loading phase so the system does not run all the time
+    // TODO: Merge this with some setup/loading phase so the system does not run all the time
     if active_system.0 {
         if time.time_since_startup() > Duration::from_secs(1) {
             let primary = windows.get_primary_mut().unwrap();
