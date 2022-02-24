@@ -177,10 +177,11 @@ impl Default for Health {
 }
 
 impl Health {
-    pub fn decr(&mut self) {
-        let d = 1;
+    pub fn decr_by(&mut self, d: usize) {
         if self.hp >= d {
             self.hp = self.hp.overflowing_sub(d).0;
+        } else {
+            self.hp = 0
         }
     }
 }
