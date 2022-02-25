@@ -15,6 +15,7 @@ use super::{
     tilemap::{HasTileType, TilePosExt},
     turn::{GamePhase, GlobalTurnCounter, TurnCounter},
 };
+use crate::game::movement::{AttackCriteria, MoveDecisions};
 use crate::map_gen::cell_map::CellMap;
 
 pub struct GamePlugin;
@@ -210,41 +211,36 @@ fn enemy_system(
     mut game_event_writer: EventWriter<GameEvent>,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
-    mut query: Query<
-        (
-            &mut TilePos,
-            &mut Transform,
-            &mut Facing,
-            &mut MovementAnimate,
-        ),
-        With<Enemy>,
-    >,
+    enemy_query: Query<Entity, With<Enemy>>,
+    mut health_query: Query<&mut Health>,
+    mut move_query: QuerySet<(
+        QueryState<(&TilePos)>,
+        QueryState<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
+        QueryState<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
+    )>,
     mut map_query: MapQuery,
     tile_type_query: Query<&HasTileType>,
-    commands: Commands,
+    mut commands: Commands,
 ) {
     if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
-        for (mut tile_pos, mut transform, mut facing, mut move_animation) in query.iter_mut() {
+        let attack_criteria = AttackCriteria::for_enemy();
+        let mut move_decisions = MoveDecisions::new();
+        for (entity) in enemy_query.iter() {
             let direction = MapDirection::rand_choice();
-
-            let can_move_with_others = check_move_attack(
-                &tile_pos,
+            let current_pos = move_query.q0().get(entity).unwrap().clone();
+            let decision = super::movement::decide_move(
+                &current_pos,
                 &direction,
-                &mut query.q1(),
-                AttackCriteria::for_enemy(),
-                &mut commands,
-            );
-
-            move_map_object(
-                &mut tile_pos,
-                &direction,
+                &attack_criteria,
+                move_query.q1(),
                 &mut map_query,
-                &mut facing,
-                &mut transform,
-                &mut move_animation,
                 &tile_type_query,
             );
+            move_decisions.insert(entity, decision);
         }
+        println!("Move Decisions: {:?}", move_decisions);
+
+        super::movement::apply_move(move_decisions, move_query.q2(), health_query, &mut commands);
         local_turn_counter.incr();
         game_event_writer.send(GameEvent::PhaseComplete(GamePhase::EnemyMovement));
     }
@@ -281,13 +277,7 @@ fn player_movement_system(
                         let (_, _, pos, _) = query.q0().single();
                         pos.clone()
                     };
-                    let can_move_with_others = check_move_attack(
-                        &current_tile_pos,
-                        &direction,
-                        &mut query.q1(),
-                        AttackCriteria::for_player(),
-                        &mut commands,
-                    );
+                    let can_move_with_others = true;
 
                     if can_move_with_others {
                         // We need to use for here as using [single_mut()] causes the query set
@@ -316,117 +306,6 @@ fn player_movement_system(
             InputEvent::Power => (),
         }
     }
-}
-
-//TODO: Move Elsewhere
-//
-pub struct AttackCriteria {
-    damage: usize,
-    can_attack_enemy: bool,
-    can_attack_player: bool,
-}
-impl AttackCriteria {
-    pub fn for_player() -> Self {
-        Self {
-            damage: 1,
-            can_attack_enemy: true,
-            can_attack_player: false,
-        }
-    }
-    pub fn for_enemy() -> Self {
-        Self {
-            damage: 1,
-            can_attack_enemy: true,
-            can_attack_player: false,
-        }
-    }
-
-    pub fn damage_to_player(&self) -> Option<usize> {
-        if self.can_attack_player {
-            Some(self.damage)
-        } else {
-            None
-        }
-    }
-
-    pub fn damage_to_enemy(&self) -> Option<usize> {
-        if self.can_attack_enemy {
-            Some(self.damage)
-        } else {
-            None
-        }
-    }
-}
-
-fn check_move_attack_imm(
-    current_tile_pos: &TilePos,
-    move_direction: &MapDirection,
-    tile_resident_query: &Query<(Entity, &TilePos, &Health, Option<&Player>, Option<&Enemy>)>,
-    attack_criteria: AttackCriteria,
-) -> Option<Entity> {
-    //Check if something is in the cell we want to move to, and maybe process outcome
-    let new_tilepos = current_tile_pos.add(move_direction.to_pos_move());
-    for (entity, tilepos, mut health, maybe_player, maybe_enemy) in tile_resident_query.iter_mut() {
-        if tilepos.eq(&new_tilepos) {
-            let can_attack = if maybe_player.is_some() {
-                attack_criteria.can_attack_player()
-            } else if maybe_enemy.is_some() {
-                attack_criteria.can_attack_enemy()
-            } else {
-                None
-            };
-            return if let Some(damage) = can_attack {
-            } else {
-                return N;
-            };
-        }
-    }
-    return true;
-}
-
-fn check_move_attack(
-    current_tile_pos: &TilePos,
-    move_direction: &MapDirection,
-    tile_resident_query: &mut Query<(
-        Entity,
-        &TilePos,
-        &mut Health,
-        Option<&Player>,
-        Option<&Enemy>,
-    )>,
-    attack_criteria: AttackCriteria,
-    commands: &mut Commands,
-) -> bool {
-    //Check if something is in the cell we want to move to, and maybe process outcome
-    let new_tilepos = current_tile_pos.add(move_direction.to_pos_move());
-    for (entity, tilepos, mut health, maybe_player, maybe_enemy) in tile_resident_query.iter_mut() {
-        if tilepos.eq(&new_tilepos) {
-            let can_attack = if maybe_player.is_some() {
-                attack_criteria.can_attack_player()
-            } else if maybe_enemy.is_some() {
-                attack_criteria.can_attack_enemy()
-            } else {
-                None
-            };
-            return if let Some(damage) = can_attack {
-                println!(
-                    "Hitting resident at {:?}. Its health: {:?}",
-                    tilepos, health
-                );
-                health.decr_by(damage);
-                println!("Now: {:?}", health);
-                if health.hp == 0 {
-                    commands.entity(entity).despawn();
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-        }
-    }
-    return true;
 }
 
 fn move_map_object(
