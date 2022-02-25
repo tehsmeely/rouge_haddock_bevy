@@ -13,6 +13,17 @@ pub enum MoveDecision {
     AttackAndDontMove((Entity, MapDirection)),
 }
 
+impl MoveDecision {
+    pub fn to_move_position(&self) -> Option<TilePos> {
+        match self {
+            Self::Nothing | Self::AttackAndDontMove(_) => None,
+            Self::Move((tilepos, _)) | Self::AttackAndMaybeMove((tilepos, _, _)) => {
+                Some(tilepos.clone())
+            }
+        }
+    }
+}
+
 pub type MoveDecisions = HashMap<Entity, MoveDecision>;
 
 pub struct AttackCriteria {
@@ -33,8 +44,8 @@ impl AttackCriteria {
     pub fn for_enemy() -> Self {
         Self {
             damage: 1,
-            can_attack_enemy: true,
-            can_attack_player: false,
+            can_attack_enemy: false,
+            can_attack_player: true,
             move_on_attack: false,
         }
     }
@@ -63,9 +74,8 @@ pub fn decide_move(
     move_query: Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
     mut map_query: &mut MapQuery,
     tile_type_query: &Query<&HasTileType>,
+    additional_ignore_tilepos: &Vec<TilePos>,
 ) -> MoveDecision {
-    // TODO Rework to allow signle use not hashmap
-    // Make decisions
     let destination_tilepos = current_pos.add(move_direction.to_pos_move());
 
     let new_tile_entity = map_query
@@ -76,6 +86,8 @@ pub fn decide_move(
         Err(_) => false,
     };
 
+    let can_move = can_move && !additional_ignore_tilepos.contains(&&destination_tilepos);
+
     let mut decision = match can_move {
         true => MoveDecision::Move((destination_tilepos.clone(), move_direction.clone())),
         false => MoveDecision::Nothing,
@@ -84,21 +96,29 @@ pub fn decide_move(
     for (target_entity, tilepos, maybe_player, maybe_enemy) in move_query.iter() {
         // Make decision
         if tilepos.eq(&destination_tilepos) {
-            if maybe_player.is_some() && attack_criteria.can_attack_player {
-                decision = attack_decision(
-                    attack_criteria,
-                    destination_tilepos,
-                    move_direction.clone(),
-                    target_entity,
-                );
+            if maybe_player.is_some() {
+                if attack_criteria.can_attack_player {
+                    decision = attack_decision(
+                        attack_criteria,
+                        destination_tilepos,
+                        move_direction.clone(),
+                        target_entity,
+                    );
+                } else {
+                    decision = MoveDecision::Nothing;
+                }
                 break;
-            } else if maybe_enemy.is_some() && attack_criteria.can_attack_enemy {
-                decision = attack_decision(
-                    attack_criteria,
-                    destination_tilepos,
-                    move_direction.clone(),
-                    target_entity,
-                );
+            } else if maybe_enemy.is_some() {
+                if attack_criteria.can_attack_enemy {
+                    decision = attack_decision(
+                        attack_criteria,
+                        destination_tilepos,
+                        move_direction.clone(),
+                        target_entity,
+                    );
+                } else {
+                    decision = MoveDecision::Nothing;
+                }
                 break;
             }
         }
@@ -121,7 +141,10 @@ pub fn apply_move_single(
             match target_health {
                 Ok(mut health) => {
                     health.decr_by(1);
-                    commands.entity(*target).despawn();
+                    if health.hp == 0 {
+                        // TODO: Move despawning to some health watcher system
+                        commands.entity(*target).despawn();
+                    }
                 }
                 Err(e) => warn!("Error getting health to attack: {:?}", e),
             }

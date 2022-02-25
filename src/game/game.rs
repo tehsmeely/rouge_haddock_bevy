@@ -207,6 +207,15 @@ fn mouse_click_debug_system(
     }
 }
 
+/*
+fn health_watcher_system(
+    enemy_health: Query<(Entity, &Health), With<Enemy>>,
+    player_health: Query<(Entity, &Health), With<Player>>,
+    commands,
+)
+
+ */
+
 fn enemy_system(
     mut game_event_writer: EventWriter<GameEvent>,
     global_turn_counter: Res<GlobalTurnCounter>,
@@ -225,6 +234,7 @@ fn enemy_system(
     if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
         let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
+        let mut moved_to = Vec::new();
         for (entity) in enemy_query.iter() {
             let direction = MapDirection::rand_choice();
             let current_pos = move_query.q0().get(entity).unwrap().clone();
@@ -235,7 +245,11 @@ fn enemy_system(
                 move_query.q1(),
                 &mut map_query,
                 &tile_type_query,
+                &moved_to,
             );
+            if let Some(tilepos) = decision.to_move_position() {
+                moved_to.push(tilepos);
+            }
             move_decisions.insert(entity, decision);
         }
         println!("Move Decisions: {:?}", move_decisions);
@@ -249,18 +263,12 @@ fn enemy_system(
 fn player_movement_system(
     mut game_event_writer: EventWriter<GameEvent>,
     mut input_events: EventReader<InputEvent>,
-    mut query: QuerySet<(
-        QueryState<
-            (
-                &mut Facing,
-                &mut Transform,
-                &mut TilePos,
-                &mut MovementAnimate,
-            ),
-            With<Player>,
-        >,
-        QueryState<(Entity, &TilePos, &mut Health)>,
+    mut move_query: QuerySet<(
+        QueryState<(Entity, &TilePos), With<Player>>,
+        QueryState<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
+        QueryState<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     )>,
+    mut health_query: Query<(&mut Health)>,
     tile_type_query: Query<(&HasTileType)>,
     mut map_query: MapQuery,
     global_turn_counter: Res<GlobalTurnCounter>,
@@ -273,30 +281,27 @@ fn player_movement_system(
                 let can_take_turn = global_turn_counter
                     .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
-                    let current_tile_pos = {
-                        let (_, _, pos, _) = query.q0().single();
-                        pos.clone()
-                    };
-                    let can_move_with_others = true;
+                    let (player_entity, current_pos) = move_query.q0().get_single().unwrap();
+                    let current_pos = current_pos.clone();
 
-                    if can_move_with_others {
-                        // We need to use for here as using [single_mut()] causes the query set
-                        // state to be freed. Meaning the query borrows are after free.
-                        // Perhaps there's a high tech way round it?
-                        for (mut facing, mut transform, mut tile_pos, mut movement_animate) in
-                            query.q0().iter_mut()
-                        {
-                            move_map_object(
-                                &mut tile_pos,
-                                &direction,
-                                &mut map_query,
-                                &mut facing,
-                                &mut transform,
-                                &mut movement_animate,
-                                &tile_type_query,
-                            );
-                        }
-                    }
+                    let move_decision = super::movement::decide_move(
+                        &current_pos,
+                        &direction,
+                        &AttackCriteria::for_player(),
+                        move_query.q1(),
+                        &mut map_query,
+                        &tile_type_query,
+                        &vec![],
+                    );
+
+                    super::movement::apply_move_single(
+                        player_entity,
+                        &move_decision,
+                        &mut move_query.q2(),
+                        &mut health_query,
+                        &mut commands,
+                    );
+
                     local_turn_counter.incr();
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 }
@@ -305,31 +310,6 @@ fn player_movement_system(
             InputEvent::Wait => (),
             InputEvent::Power => (),
         }
-    }
-}
-
-fn move_map_object(
-    mut current_tile_pos: &mut TilePos,
-    move_direction: &MapDirection,
-    map_query: &mut MapQuery,
-    facing: &mut Facing,
-    transform: &mut Transform,
-    move_animation: &mut MovementAnimate,
-    tile_type_query: &Query<(&HasTileType)>,
-) {
-    let new_tilepos = current_tile_pos.add(move_direction.to_pos_move());
-    println!("New Tile Pos: {:?}", new_tilepos);
-    let new_tile_entity = map_query.get_tile_entity(new_tilepos, 0, 0).unwrap();
-    let can_move = match tile_type_query.get(new_tile_entity) {
-        Ok(HasTileType(tt)) => tt.can_enter(),
-        Err(_) => false,
-    };
-    facing.0 = move_direction.clone();
-    if can_move {
-        *current_tile_pos = new_tilepos;
-        move_animation.set(new_tilepos.to_world_pos(transform.translation.z));
-        facing.0 = move_direction.clone();
-        println!("Now at {:?}", current_tile_pos);
     }
 }
 
