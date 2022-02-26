@@ -6,9 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# Sadly compiling with "Dynamic" casuses a msvc "fatal error LNK1189: library limit of 65535 objects exceeded"
-#bevy = { version = "0.6.0", features = ["dynamic"] }
-bevy = { version = "0.6.0", features = [] }
 bevy_ecs_tilemap = "0.5.0"
 num = "0.4"
 log = "0.4.14"
@@ -17,3 +14,23 @@ rand = "0.8.4"
 image = "0.24.0"
 winit = "0.26.1"
 array2d = "0.2.1"
+
+[dependencies.bevy]
+# Sadly compiling with "Dynamic" casuses a msvc "fatal error LNK1189: library limit of 65535 objects exceeded"
+#bevy = { version = "0.6.0", features = ["dynamic"] }
+version = "0.6.0"
+default-features=false
+# Excluding vorbis and bevy_audio in favour of bevy_kira_audio crate
+features = [
+    "render",
+    "bevy_winit",
+    "bevy_gilrs",
+    "png",
+    "hdr",
+    "x11",
+    "filesystem_watcher",
+]
+
+[dependencies.bevy_kira_audio]
+version = "0.8.0"
+features = ["wav"]

@@ -131,7 +131,6 @@ pub fn apply_move_single(
     move_decision: &MoveDecision,
     mut move_query: &mut Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     mut health_query: &mut Query<&mut Health>,
-    mut commands: &mut Commands,
 ) {
     let (maybe_tilepos, maybe_facing) = match move_decision {
         MoveDecision::Nothing => (None, None),
@@ -141,10 +140,6 @@ pub fn apply_move_single(
             match target_health {
                 Ok(mut health) => {
                     health.decr_by(1);
-                    if health.hp == 0 {
-                        // TODO: Move despawning to some health watcher system
-                        commands.entity(*target).despawn();
-                    }
                 }
                 Err(e) => warn!("Error getting health to attack: {:?}", e),
             }
@@ -156,7 +151,6 @@ pub fn apply_move_single(
                 Ok(mut health) => {
                     health.decr_by(1);
                     if health.hp == 0 {
-                        commands.entity(*target).despawn();
                         Some(move_to)
                     } else {
                         None
@@ -189,16 +183,9 @@ pub fn apply_move(
     move_decisions: MoveDecisions,
     mut move_query: Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     mut health_query: Query<&mut Health>,
-    mut commands: &mut Commands,
 ) {
     //Apply decisions:
     for (entity, decision) in move_decisions.iter() {
-        apply_move_single(
-            *entity,
-            decision,
-            &mut move_query,
-            &mut health_query,
-            commands,
-        )
+        apply_move_single(*entity, decision, &mut move_query, &mut health_query)
     }
 }

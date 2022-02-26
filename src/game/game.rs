@@ -15,8 +15,11 @@ use super::{
     tilemap::{HasTileType, TilePosExt},
     turn::{GamePhase, GlobalTurnCounter, TurnCounter},
 };
+use crate::game::events::InfoEvent;
 use crate::game::movement::{AttackCriteria, MoveDecisions};
 use crate::map_gen::cell_map::CellMap;
+use bevy_kira_audio::Audio;
+use std::io::Chain;
 
 pub struct GamePlugin;
 
@@ -25,20 +28,28 @@ impl Plugin for GamePlugin {
         app.add_startup_system(setup)
             .add_system(animate_sprite_system)
             .add_system(input_handle_system.label("input"))
-            .add_system(camera_follow_system.after("movement"))
-            .add_system(debug_print_input_system)
-            .add_system(player_movement_system.label("movement"))
-            .add_system(global_turn_counter_system.after("movement"))
-            .add_system(enemy_system.after("movement"))
             .add_system(mouse_click_system.label("input"))
-            .add_system(animate_move_system.after("movement"))
+            .add_system(debug_print_input_system)
+            .add_system(player_movement_system.label("player_movement"))
+            .add_system(camera_follow_system.after("player_movement"))
+            .add_system(player_movement_watcher.after("player_movement"))
+            .add_system(
+                enemy_system
+                    .label("enemy_movement")
+                    .after("player_movement"),
+            )
+            .add_system(animate_move_system.after("enemy_movement"))
+            .add_system(global_turn_counter_system.after("enemy_movement"))
             .add_system_set(
                 SystemSet::new()
                     .with_system(mouse_click_debug_system.after("input"))
                     .with_system(input_event_debug_system.after("input")),
             )
+            .add_system(health_watcher_system.after("enemy_movement"))
+            .add_system(sfx_system)
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
+            .add_event::<super::events::InfoEvent>()
             .add_event::<MouseClickEvent>()
             .insert_resource(GlobalTurnCounter::default());
         super::tilemap::build(app);
@@ -175,9 +186,20 @@ fn input_handle_system(input: Res<Input<KeyCode>>, mut input_events: EventWriter
     };
     let shift_held = input.pressed(KeyCode::LShift);
     match (new_direction, shift_held) {
-        (Some(dir), false) => input_events.send(InputEvent::MoveDirection(dir)),
-        (Some(dir), true) => input_events.send(InputEvent::TurnDirection(dir)),
+        (Some(dir), false) => {
+            input_events.send(InputEvent::MoveDirection(dir));
+            return;
+        }
+        (Some(dir), true) => {
+            input_events.send(InputEvent::TurnDirection(dir));
+            return;
+        }
         (None, _) => (),
+    }
+
+    if input.just_pressed(KeyCode::Space) {
+        input_events.send(InputEvent::Wait);
+        return;
     }
 }
 
@@ -207,14 +229,62 @@ fn mouse_click_debug_system(
     }
 }
 
-/*
 fn health_watcher_system(
-    enemy_health: Query<(Entity, &Health), With<Enemy>>,
-    player_health: Query<(Entity, &Health), With<Player>>,
-    commands,
-)
+    enemy_health: Query<(Entity, &Health), (With<Enemy>, Changed<Health>)>,
+    player_health: Query<(Entity, &Health), (With<Player>, Changed<Health>)>,
+    mut info_event_writer: EventWriter<InfoEvent>,
+    mut commands: Commands,
+    mut known_player_hp: Local<Option<usize>>,
+) {
+    for (entity, health) in enemy_health.iter() {
+        if health.hp == 0 {
+            info_event_writer.send(InfoEvent::EnemyKilled);
+            println!("Enemy died {:?}", entity);
+            commands.entity(entity).despawn()
+        }
+    }
 
- */
+    for (entity, health) in player_health.iter() {
+        // There's a small chance this change triggers even if health aint changed - may need to
+        // handle this if it becomes a problem
+        match *known_player_hp {
+            Some(known_hp) if known_hp != health.hp => {
+                info_event_writer.send(InfoEvent::PlayerHurt);
+            }
+            _ => (),
+        }
+        *known_player_hp = Some(health.hp);
+        if health.hp == 0 {
+            println!("Player! died {:?}", entity);
+        }
+    }
+}
+
+fn sfx_system(
+    mut info_event_reader: EventReader<InfoEvent>,
+    audio: Res<Audio>,
+    assets: Res<AssetServer>,
+) {
+    for event in info_event_reader.iter() {
+        match event {
+            InfoEvent::PlayerHurt => {
+                debug!("Playing Audio for Player Hurt");
+                let sound = assets.load("audio/342229__christopherderp__hurt-1-male.wav");
+                audio.play(sound);
+            }
+            InfoEvent::EnemyKilled => {
+                debug!("Playing Audio for Enemy Killed");
+                let sound = assets.load("audio/carrotnom.wav");
+                audio.play(sound);
+            }
+            InfoEvent::PlayerMoved => {
+                debug!("Playing Audio for Player Moved");
+                let sound = assets.load("audio/fish_slap.ogg");
+                audio.play(sound);
+            }
+        }
+    }
+}
 
 fn enemy_system(
     mut game_event_writer: EventWriter<GameEvent>,
@@ -223,26 +293,27 @@ fn enemy_system(
     enemy_query: Query<Entity, With<Enemy>>,
     mut health_query: Query<&mut Health>,
     mut move_query: QuerySet<(
-        QueryState<(&TilePos)>,
+        QueryState<&TilePos, With<Player>>,
+        QueryState<&TilePos, With<Enemy>>,
         QueryState<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
         QueryState<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     )>,
     mut map_query: MapQuery,
     tile_type_query: Query<&HasTileType>,
-    mut commands: Commands,
 ) {
+    let player_position = move_query.q0().get_single().unwrap().clone();
     if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
         let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
         let mut moved_to = Vec::new();
         for (entity) in enemy_query.iter() {
-            let direction = MapDirection::rand_choice();
-            let current_pos = move_query.q0().get(entity).unwrap().clone();
+            let current_pos = move_query.q1().get(entity).unwrap().clone();
+            let direction = MapDirection::weighted_rand_choice(&current_pos, &player_position);
             let decision = super::movement::decide_move(
                 &current_pos,
                 &direction,
                 &attack_criteria,
-                move_query.q1(),
+                move_query.q2(),
                 &mut map_query,
                 &tile_type_query,
                 &moved_to,
@@ -254,9 +325,25 @@ fn enemy_system(
         }
         println!("Move Decisions: {:?}", move_decisions);
 
-        super::movement::apply_move(move_decisions, move_query.q2(), health_query, &mut commands);
+        super::movement::apply_move(move_decisions, move_query.q3(), health_query);
         local_turn_counter.incr();
         game_event_writer.send(GameEvent::PhaseComplete(GamePhase::EnemyMovement));
+    }
+}
+
+fn player_movement_watcher(
+    player_position_query: Query<&TilePos, (With<Player>, Changed<TilePos>)>,
+    mut known_player_position: Local<Option<TilePos>>,
+    mut info_event_writer: EventWriter<InfoEvent>,
+) {
+    if let Ok(player_tilepos) = player_position_query.get_single() {
+        match *known_player_position {
+            Some(pos) if pos != *player_tilepos => {
+                info_event_writer.send(InfoEvent::PlayerMoved);
+            }
+            _ => (),
+        }
+        *known_player_position = Some(player_tilepos.clone());
     }
 }
 
@@ -273,7 +360,6 @@ fn player_movement_system(
     mut map_query: MapQuery,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
-    mut commands: Commands,
 ) {
     for event in input_events.iter() {
         match event {
@@ -299,7 +385,6 @@ fn player_movement_system(
                         &move_decision,
                         &mut move_query.q2(),
                         &mut health_query,
-                        &mut commands,
                     );
 
                     local_turn_counter.incr();
@@ -307,7 +392,15 @@ fn player_movement_system(
                 }
             }
             InputEvent::TurnDirection(_dir) => (),
-            InputEvent::Wait => (),
+            InputEvent::Wait => {
+                let can_take_turn = global_turn_counter
+                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                if can_take_turn {
+                    println!("Player Waiting");
+                    local_turn_counter.incr();
+                    game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                }
+            }
             InputEvent::Power => (),
         }
     }
@@ -318,7 +411,6 @@ fn debug_print_input_system(
         QueryState<(&Transform, &GlobalTransform)>,
         QueryState<(&Player)>,
     )>,
-    //query: Query<(&Transform, &GlobalTransform)>,
     input: Res<Input<KeyCode>>,
 ) {
     if input.just_pressed(KeyCode::P) {
@@ -336,7 +428,7 @@ fn setup(
 ) {
     let border_size = 20usize;
     let cell_map: CellMap<i32> = {
-        let normalised = crate::map_gen::get_cell_map(50, 20);
+        let normalised = crate::map_gen::get_cell_map(50, 50);
         normalised.offset((border_size as i32, border_size as i32))
     };
     println!("Final CellMap: {:?}", cell_map);
@@ -380,7 +472,7 @@ fn add_sharks(
     let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
-    let spawn_positions = cell_map.distribute_points_by_cost(3);
+    let spawn_positions = cell_map.distribute_points_by_cost(7);
     //for (x, y) in [(8, 9), (12, 12), (3, 10)].into_iter() {
     for (x, y) in spawn_positions.into_iter() {
         let tile_pos = TilePos(x as u32, y as u32);

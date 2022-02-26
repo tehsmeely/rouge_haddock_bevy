@@ -13,3 +13,11 @@ pub enum InputEvent {
 pub enum GameEvent {
     PhaseComplete(GamePhase),
 }
+
+#[derive(Debug)]
+pub enum InfoEvent {
+    // Events specifically for info and not necessarilly drive systems
+    EnemyKilled,
+    PlayerHurt,
+    PlayerMoved,
+}

@@ -4,6 +4,7 @@ use bevy::utils::Duration;
 use bevy::window::WindowId;
 use bevy::winit::WinitWindows;
 use bevy_ecs_tilemap::{MapQuery, TilePos, TilemapPlugin};
+use bevy_kira_audio::AudioPlugin;
 use log::info;
 use simple_logger::SimpleLogger;
 use winit::window::Icon;
@@ -16,6 +17,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(TilemapPlugin)
+        .add_plugin(AudioPlugin)
         .add_plugin(crate::game::Plugin)
         .add_system(setup_window_title)
         .run();

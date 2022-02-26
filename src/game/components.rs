@@ -1,6 +1,7 @@
 use crate::game::tilemap::TilePosExt;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::{Tile, TilePos};
+use std::collections::HashMap;
 
 #[derive(Debug, Component)]
 pub struct Player;
@@ -12,7 +13,7 @@ pub struct CameraFollow {
 }
 
 // Not called "Direction" as to not smash with the Direction in bevy prelude
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MapDirection {
     Up,
     Right,
@@ -45,6 +46,56 @@ impl MapDirection {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
         Self::ALL.choose(&mut rng).unwrap().clone()
+    }
+
+    pub fn weighted_rand_choice(from_pos: &TilePos, target_pos: &TilePos) -> Self {
+        let dx = target_pos.0 as isize - from_pos.0 as isize;
+        let dy = target_pos.1 as isize - from_pos.1 as isize;
+        let mut costs = HashMap::new();
+        if dx.abs() > dy.abs() {
+            pick_left_right(dx, 4, 1, &mut costs);
+            pick_up_down(dy, 3, 2, &mut costs);
+        } else {
+            pick_up_down(dy, 4, 1, &mut costs);
+            pick_left_right(dx, 3, 2, &mut costs);
+        }
+
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        let weights = move |map_dir: &MapDirection| costs.get(map_dir).cloned().unwrap_or(0);
+        Self::ALL
+            .choose_weighted(&mut rng, weights)
+            .unwrap()
+            .clone()
+    }
+}
+
+fn pick_up_down(
+    dy: isize,
+    high_cost: usize,
+    low_cost: usize,
+    costs: &mut HashMap<MapDirection, usize>,
+) {
+    if dy > 0 {
+        costs.insert(MapDirection::Up, high_cost);
+        costs.insert(MapDirection::Down, low_cost);
+    } else {
+        costs.insert(MapDirection::Down, high_cost);
+        costs.insert(MapDirection::Up, low_cost);
+    }
+}
+fn pick_left_right(
+    dx: isize,
+    high_cost: usize,
+    low_cost: usize,
+    costs: &mut HashMap<MapDirection, usize>,
+) {
+    if dx > 0 {
+        costs.insert(MapDirection::Right, high_cost);
+        costs.insert(MapDirection::Left, low_cost);
+    } else {
+        costs.insert(MapDirection::Left, high_cost);
+        costs.insert(MapDirection::Right, low_cost);
     }
 }
 
