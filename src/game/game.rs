@@ -5,7 +5,6 @@ use bevy::reflect::Map;
 use bevy_ecs_tilemap::{MapQuery, TilePos, TilemapPlugin};
 use log::info;
 
-use crate::game::components::TileType;
 use crate::helpers::error_handling::ResultOkLog;
 
 use super::{
@@ -13,19 +12,25 @@ use super::{
     enemy::{Enemy, Shark},
     events::{GameEvent, InputEvent},
     tilemap::{HasTileType, TilePosExt},
+    timed_removal::{TimedRemoval, TimedRemovalPlugin},
     turn::{GamePhase, GlobalTurnCounter, TurnCounter},
 };
 use crate::game::events::InfoEvent;
 use crate::game::movement::{AttackCriteria, MoveDecisions};
+use crate::game::projectile::spawn_projectile;
 use crate::map_gen::cell_map::CellMap;
+use bevy::sprite::MaterialMesh2dBundle;
 use bevy_kira_audio::Audio;
 use std::io::Chain;
+use std::marker::PhantomData;
+use std::time::Duration;
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup)
+            .add_startup_system(add_test_mesh2d)
             .add_system(animate_sprite_system)
             .add_system(input_handle_system.label("input"))
             .add_system(mouse_click_system.label("input"))
@@ -46,7 +51,11 @@ impl Plugin for GamePlugin {
                     .with_system(input_event_debug_system.after("input")),
             )
             .add_system(health_watcher_system.after("enemy_movement"))
+            .add_system(player_damaged_effect_system.after("enemy_movement"))
             .add_system(sfx_system)
+            .add_system(waggle_system)
+            .add_system(super::projectile::projectile_system)
+            .add_plugin(TimedRemovalPlugin)
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
@@ -70,21 +79,41 @@ fn global_turn_counter_system(
     }
 }
 
+fn waggle_system(mut query: Query<(Entity, &mut Transform, &mut Waggle)>, mut commands: Commands) {
+    for (entity, mut transform, mut waggle) in query.iter_mut() {
+        waggle.update(&mut transform.rotation);
+        if waggle.finished() {
+            println!("Waggle Finished");
+            commands.entity(entity).remove::<Waggle>();
+        }
+    }
+}
+
 fn animate_sprite_system(
     time: Res<Time>,
     mut query: Query<(
         &mut Timer,
         &mut TextureAtlasSprite,
         &Facing,
-        &mut DirectionalAnimation,
+        &mut DirectionalSpriteAnimation,
+        Option<&DirectionalSpriteAnimationSpecial>,
     )>,
 ) {
-    for (mut timer, mut sprite, facing, mut direction_animation) in query.iter_mut() {
+    for (
+        mut timer,
+        mut sprite,
+        facing,
+        mut direction_animation,
+        maybe_direction_animation_special,
+    ) in query.iter_mut()
+    {
         timer.tick(time.delta());
         if timer.finished() {
             direction_animation.incr();
         }
-        if direction_animation.dirty {
+        if let Some(special_index) = maybe_direction_animation_special {
+            sprite.index = direction_animation.special_index_safe(special_index.0, &facing.0)
+        } else if direction_animation.dirty {
             sprite.index = direction_animation.index(&facing.0);
         }
     }
@@ -225,6 +254,27 @@ fn mouse_click_debug_system(
             let tile_entity = map_query.get_tile_entity(tile_pos, 0, 0).unwrap();
             let tile_type = tile_type_query.get(tile_entity).unwrap();
             println!("Clicked {:?} ({:?})", tile_pos, tile_type);
+        }
+    }
+}
+
+fn player_damaged_effect_system(
+    mut info_event_reader: EventReader<InfoEvent>,
+    player_query: Query<Entity, With<Player>>,
+    mut commands: Commands,
+) {
+    for event in info_event_reader.iter() {
+        match event {
+            InfoEvent::PlayerHurt => {
+                let player_entity = player_query.single();
+                let timed_removal: TimedRemoval<DirectionalSpriteAnimationSpecial> =
+                    TimedRemoval::new(Duration::from_millis(500));
+                commands
+                    .entity(player_entity)
+                    .insert(DirectionalSpriteAnimationSpecial(0))
+                    .insert(timed_removal);
+            }
+            _ => (),
         }
     }
 }
@@ -410,16 +460,31 @@ fn debug_print_input_system(
     mut query: QuerySet<(
         QueryState<(&Transform, &GlobalTransform)>,
         QueryState<(&Player)>,
+        QueryState<(&TilePos, &Transform), With<Player>>,
     )>,
     input: Res<Input<KeyCode>>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
     if input.just_pressed(KeyCode::P) {
         for (trans, global_trans) in query.q0().iter() {
             println!("{:?} (Global: {:?}", trans, global_trans)
         }
     }
-}
 
+    if input.just_pressed(KeyCode::T) {
+        let (tilepos, player_position) = query.q2().single();
+        let end_point = TilePos(tilepos.0, tilepos.1 - 5);
+        spawn_projectile(
+            commands,
+            asset_server,
+            texture_atlases,
+            player_position.translation.clone(),
+            end_point,
+        );
+    }
+}
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -441,14 +506,15 @@ fn setup(
     );
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
-    let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
+    let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 5, 4);
     let atlas_handle = texture_atlases.add(atlas);
     let start_point = {
         let start_point = cell_map.start_point().unwrap_or((1, 1));
         TilePos(start_point.0 as u32, start_point.1 as u32)
     };
     commands
-        .spawn_bundle(TileResidentBundle::new(3, start_point, atlas_handle))
+        .spawn_bundle(TileResidentBundle::new(3, start_point, atlas_handle, 1))
+        .insert(Waggle::new(100, -0.4, 0.4, 0.01))
         .insert(CameraFollow {
             x_threshold: 300.0,
             y_threshold: 200.0,
@@ -461,6 +527,20 @@ fn setup(
         &mut texture_atlases,
         &cell_map,
     );
+}
+
+fn add_test_mesh2d(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands,
+) {
+    let start_pos = TilePos(22, 22).to_world_pos(20.0);
+    commands.spawn_bundle(MaterialMesh2dBundle {
+        mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
+        transform: Transform::from_translation(start_pos).with_scale(Vec3::splat(64.)),
+        material: materials.add(ColorMaterial::from(Color::PURPLE)),
+        ..Default::default()
+    });
 }
 
 fn add_sharks(
@@ -477,7 +557,12 @@ fn add_sharks(
     for (x, y) in spawn_positions.into_iter() {
         let tile_pos = TilePos(x as u32, y as u32);
         commands
-            .spawn_bundle(TileResidentBundle::new(1, tile_pos, atlas_handle.clone()))
+            .spawn_bundle(TileResidentBundle::new(
+                1,
+                tile_pos,
+                atlas_handle.clone(),
+                0,
+            ))
             .insert(Enemy {})
             .insert(Shark {});
     }

@@ -1,6 +1,7 @@
 use crate::game::tilemap::TilePosExt;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::{Tile, TilePos};
+use interpolation::Lerp;
 use std::collections::HashMap;
 
 #[derive(Debug, Component)]
@@ -108,29 +109,59 @@ impl Default for Facing {
     }
 }
 
+/// Struct for handling animated sprite frames from a spritesheet where frames depend on direction
 #[derive(Debug, Component)]
-pub struct DirectionalAnimation {
-    pub frames_per_direction: usize,
+pub struct DirectionalSpriteAnimation {
+    pub regular_frames_per_direction: usize,
+    pub special_frames_per_direction: usize,
     pub frame_index: usize,
     pub dirty: bool,
 }
-impl Default for DirectionalAnimation {
+impl Default for DirectionalSpriteAnimation {
     fn default() -> Self {
         Self {
-            frames_per_direction: 4,
+            regular_frames_per_direction: 4,
+            special_frames_per_direction: 0,
             frame_index: 0,
             dirty: false,
         }
     }
 }
-impl DirectionalAnimation {
+impl DirectionalSpriteAnimation {
+    // Example of 4 regular frames, 1 special frame layout
+    // [0, 1, 2, 3], 4
+    // [5, 6, 7, 8], 9
+    // [10, 11, 12, 13], 14
+    // [15, 16, 17, 18], 19
+    pub fn new(regular_frames_per_direction: usize, special_frames_per_direction: usize) -> Self {
+        Self {
+            regular_frames_per_direction,
+            special_frames_per_direction,
+            ..Default::default()
+        }
+    }
     pub fn incr(&mut self) {
-        self.frame_index = (self.frame_index + 1) % self.frames_per_direction;
+        self.frame_index = (self.frame_index + 1) % self.regular_frames_per_direction;
         self.dirty = true;
     }
 
+    fn total_frames_per_direction(&self) -> usize {
+        self.regular_frames_per_direction + self.special_frames_per_direction
+    }
+
     pub fn index(&self, direction: &MapDirection) -> usize {
-        (Self::direction_to_order_index(direction) * self.frames_per_direction) + self.frame_index
+        (Self::direction_to_order_index(direction) * self.total_frames_per_direction())
+            + self.frame_index
+    }
+
+    pub fn special_index_safe(&self, special_index: usize, direction: &MapDirection) -> usize {
+        let offset = if special_index < self.special_frames_per_direction {
+            self.regular_frames_per_direction + special_index
+        } else {
+            warn!("Special Index is greater than expected for this DirectionalSpriteAnimations: {}, available: {}", special_index, self.special_frames_per_direction);
+            self.regular_frames_per_direction - 1
+        };
+        (Self::direction_to_order_index(direction) * self.total_frames_per_direction()) + offset
     }
 
     pub fn direction_to_order_index(direction: &MapDirection) -> usize {
@@ -142,6 +173,10 @@ impl DirectionalAnimation {
         }
     }
 }
+
+/// Component to override the frame index in a [DirectionalSpriteAnimation] with a special frame
+#[derive(Component)]
+pub struct DirectionalSpriteAnimationSpecial(pub usize);
 
 #[derive(Debug)]
 pub struct MouseClickEvent {
@@ -178,6 +213,65 @@ impl MovementAnimate {
 
     pub fn finished(&self, from: &Vec3) -> bool {
         self.destination_position.eq(from)
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct Waggle {
+    count: usize,
+    rotation_anticlockwise: f32,
+    rotation_clockwise: f32,
+    factor: f32,
+    current_rotation: f32,
+}
+
+impl Waggle {
+    pub fn new(
+        count: usize,
+        rotation_anticlockwise: f32,
+        rotation_clockwise: f32,
+        factor: f32,
+    ) -> Self {
+        Self {
+            count,
+            rotation_anticlockwise,
+            rotation_clockwise,
+            factor,
+            current_rotation: 0f32,
+        }
+    }
+    pub fn update(&mut self, current: &mut Quat) {
+        if self.count > 0 {
+            // TODO this needs some work: The lerp used in this way never completes.
+            let target_rotation = if self.count == 1 {
+                0f32
+            } else if self.count % 2 == 0 {
+                self.rotation_anticlockwise
+            } else {
+                self.rotation_clockwise
+            };
+            //let (current_rotation_axis, current_rotation) = current.to_axis_angle();
+            let new_rotation = self.current_rotation.lerp(&target_rotation, &self.factor);
+            let diff = self.current_rotation - new_rotation;
+            *current = Quat::from_rotation_z(new_rotation);
+            let debug = false;
+            if debug {
+                println!(
+                    "current_rotation: {:}, Target: {:?}. New: {:?}",
+                    self.current_rotation, target_rotation, new_rotation
+                );
+            }
+            self.current_rotation = new_rotation;
+            if (new_rotation - target_rotation).abs() <= (diff * 10f32).abs() {
+                println!("Waggle Decreasing");
+                self.count -= 1;
+            }
+        } else {
+            ()
+        }
+    }
+    pub fn finished(&self) -> bool {
+        self.count == 0
     }
 }
 
@@ -243,14 +337,19 @@ pub struct TileResidentBundle {
     sprite_sheet_bundle: SpriteSheetBundle,
     timer: Timer,
     facing: Facing,
-    directional_animation: DirectionalAnimation,
+    directional_animation: DirectionalSpriteAnimation,
     tile_pos: TilePos,
     movement_animate: MovementAnimate,
     health: Health,
 }
 
 impl TileResidentBundle {
-    pub fn new(initial_hp: usize, tile_pos: TilePos, atlas_handle: Handle<TextureAtlas>) -> Self {
+    pub fn new(
+        initial_hp: usize,
+        tile_pos: TilePos,
+        atlas_handle: Handle<TextureAtlas>,
+        special_frames: usize,
+    ) -> Self {
         let start_pos = tile_pos.to_world_pos(10.0);
         Self {
             sprite_sheet_bundle: SpriteSheetBundle {
@@ -260,7 +359,7 @@ impl TileResidentBundle {
             },
             timer: Timer::from_seconds(0.1, true),
             facing: (Facing::default()),
-            directional_animation: DirectionalAnimation::default(),
+            directional_animation: DirectionalSpriteAnimation::new(4, special_frames),
             tile_pos: (tile_pos),
             movement_animate: (MovementAnimate::default()),
             health: Health { hp: initial_hp },

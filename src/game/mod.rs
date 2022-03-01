@@ -3,7 +3,9 @@ mod enemy;
 mod events;
 mod game;
 mod movement;
+mod projectile;
 mod tilemap;
+mod timed_removal;
 mod turn;
 
 pub use game::GamePlugin as Plugin;
