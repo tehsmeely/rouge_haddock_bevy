@@ -9,11 +9,28 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, SpriteBundle, TextureAtlas};
 use bevy::prelude::{SpriteSheetBundle, Transform};
 use bevy_ecs_tilemap::TilePos;
+use log::debug;
+
+pub enum ProjectileEvent {
+    ProjectileLaunched,
+    ProjectileHit(Entity),
+}
 
 #[derive(Component)]
 pub struct Projectile {
     end_point: TilePos,
     speed: f32,
+    finish_point_threshold: f32,
+}
+
+impl Projectile {
+    fn new(end_point: TilePos, speed: f32) -> Self {
+        Self {
+            end_point,
+            speed,
+            finish_point_threshold: 64f32 / 100.0,
+        }
+    }
 }
 
 pub fn projectile_system(
@@ -23,18 +40,24 @@ pub fn projectile_system(
 ) {
     for (entity, mut transform, mut projectile) in query.iter_mut() {
         let target_pos = projectile.end_point.to_world_pos(1f32).truncate();
-        let direction: Vec2 =
-            (Vec2::from(target_pos) - transform.translation.truncate()).normalize();
+        let distance_to_travel = (Vec2::from(target_pos) - transform.translation.truncate());
+        let direction: Vec2 = distance_to_travel.normalize();
 
-        transform.translation +=
-            (direction * projectile.speed * time.delta().as_secs_f32()).extend(0f32);
+        let distance_this_step = direction * projectile.speed * time.delta().as_secs_f32();
 
-        let remaining_distance = (Vec2::from(target_pos) - transform.translation.truncate());
+        transform.translation += distance_this_step.extend(0f32);
 
-        //We know we've overshot when the signs of remaining_distance are opposite
-        let overshot = remaining_distance.x.signum() != direction.x.signum()
-            && remaining_distance.y.signum() != direction.y.signum();
-        if overshot {
+        if (transform.translation.truncate() - target_pos).length()
+            < projectile.finish_point_threshold
+        {
+            debug!("Despawning projectile: {:?}", entity);
+            commands.entity(entity).despawn();
+        }
+
+        if distance_this_step.x.abs() > distance_to_travel.x.abs()
+            && distance_this_step.y.abs() > distance_to_travel.y.abs()
+        {
+            debug!("(2) Despawning projectile: {:?}", entity);
             commands.entity(entity).despawn();
         }
     }
@@ -59,8 +82,5 @@ pub fn spawn_projectile(
         .insert(Timer::from_seconds(0.1, true))
         .insert((Facing(MapDirection::Down)))
         .insert(DirectionalSpriteAnimation::new(4, 0))
-        .insert(Projectile {
-            end_point,
-            speed: 150.,
-        });
+        .insert(Projectile::new(end_point, 150.));
 }

@@ -1,5 +1,6 @@
 use crate::game::tilemap::TilePosExt;
 use bevy::prelude::*;
+use bevy::utils::Duration;
 use bevy_ecs_tilemap::{Tile, TilePos};
 use interpolation::Lerp;
 use std::collections::HashMap;
@@ -207,6 +208,9 @@ impl MovementAnimate {
     }
 
     pub fn set(&mut self, destination_pos: Vec3) {
+        if self.active {
+            debug!("Movement animate set to new position whilst still active (This isn't a problem really)");
+        }
         self.destination_position = destination_pos;
         self.active = true
     }
@@ -240,7 +244,7 @@ impl Waggle {
             current_rotation: 0f32,
         }
     }
-    pub fn update(&mut self, current: &mut Quat) {
+    pub fn update(&mut self, current: &mut Quat, delta: &Duration) {
         if self.count > 0 {
             // TODO this needs some work: The lerp used in this way never completes.
             let target_rotation = if self.count == 1 {
@@ -250,20 +254,27 @@ impl Waggle {
             } else {
                 self.rotation_clockwise
             };
-            //let (current_rotation_axis, current_rotation) = current.to_axis_angle();
-            let new_rotation = self.current_rotation.lerp(&target_rotation, &self.factor);
-            let diff = self.current_rotation - new_rotation;
+
+            let rotation_direction = (target_rotation - self.current_rotation).signum();
+            let rotation_this_step = rotation_direction * self.factor * delta.as_secs_f32();
+
+            let new_rotation = self.current_rotation + rotation_this_step;
+            info!(
+                "new_rotation:{} = self.current_rotation:{} + rotation_this_step:{}",
+                new_rotation, self.current_rotation, rotation_this_step
+            );
+
             *current = Quat::from_rotation_z(new_rotation);
-            let debug = false;
-            if debug {
-                println!(
-                    "current_rotation: {:}, Target: {:?}. New: {:?}",
-                    self.current_rotation, target_rotation, new_rotation
-                );
-            }
             self.current_rotation = new_rotation;
-            if (new_rotation - target_rotation).abs() <= (diff * 10f32).abs() {
-                println!("Waggle Decreasing");
+            // Target: 30
+            // old: 29
+            // direction = 30-29 = 1 = 1.0
+            // new = 31
+            // new_dir = 30-31 = -1 = -1.0
+            let overshot = (new_rotation - target_rotation).signum() != rotation_direction;
+
+            if overshot {
+                info!("Waggle reducing: {}->{}", self.count, self.count - 1);
                 self.count -= 1;
             }
         } else {

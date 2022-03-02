@@ -79,9 +79,13 @@ fn global_turn_counter_system(
     }
 }
 
-fn waggle_system(mut query: Query<(Entity, &mut Transform, &mut Waggle)>, mut commands: Commands) {
+fn waggle_system(
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut Waggle)>,
+    mut commands: Commands,
+) {
     for (entity, mut transform, mut waggle) in query.iter_mut() {
-        waggle.update(&mut transform.rotation);
+        waggle.update(&mut transform.rotation, &time.delta());
         if waggle.finished() {
             println!("Waggle Finished");
             commands.entity(entity).remove::<Waggle>();
@@ -475,7 +479,7 @@ fn debug_print_input_system(
 
     if input.just_pressed(KeyCode::T) {
         let (tilepos, player_position) = query.q2().single();
-        let end_point = TilePos(tilepos.0, tilepos.1 - 5);
+        let end_point = TilePos(tilepos.0, tilepos.1 - 2);
         spawn_projectile(
             commands,
             asset_server,

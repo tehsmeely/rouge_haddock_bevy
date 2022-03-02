@@ -273,15 +273,3 @@ fn run_single(min_size: usize) -> Option<CellMap<i32>> {
     //println!("normalise_cell_map: {:?}", normalised_cell_map);
     Some(normalised_cell_map)
 }
-
-pub fn run_single_manual() {
-    use std::io::stdin;
-    let mut grid = Grid::new((20, 20));
-    grid.draw();
-    let mut s = String::new();
-    loop {
-        let _ = stdin().read_line(&mut s);
-        grid.update();
-        grid.draw();
-    }
-}
