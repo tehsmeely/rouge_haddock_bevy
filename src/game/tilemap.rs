@@ -11,6 +11,8 @@ pub trait TilePosExt {
     // TODO: Call this "to_global_position" to ensure non-confusion with local transforms?
     fn to_world_pos(&self, z: f32) -> Vec3;
     fn from_world_pos(x: f32, y: f32) -> Self;
+
+    fn as_vec2(&self) -> Vec2;
 }
 impl TilePosExt for TilePos {
     fn add(&self, add: (i32, i32)) -> Self {
@@ -18,6 +20,10 @@ impl TilePosExt for TilePos {
             helpers::add(self.0, add.0).unwrap(),
             helpers::add(self.1, add.1).unwrap(),
         )
+    }
+
+    fn as_vec2(&self) -> Vec2 {
+        Vec2::new(self.0 as f32, self.1 as f32)
     }
 
     fn to_world_pos(&self, z: f32) -> Vec3 {

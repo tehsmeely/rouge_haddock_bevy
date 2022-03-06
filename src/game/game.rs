@@ -15,9 +15,9 @@ use super::{
     timed_removal::{TimedRemoval, TimedRemovalPlugin},
     turn::{GamePhase, GlobalTurnCounter, TurnCounter},
 };
-use crate::game::events::InfoEvent;
+use crate::game::events::{InfoEvent, PowerEvent};
 use crate::game::movement::{AttackCriteria, MoveDecisions};
-use crate::game::projectile::spawn_projectile;
+use crate::game::projectile::{spawn_projectile, ProjectileFate};
 use crate::map_gen::cell_map::CellMap;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy_kira_audio::Audio;
@@ -29,36 +29,40 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
-            .add_startup_system(add_test_mesh2d)
-            .add_system(animate_sprite_system)
-            .add_system(input_handle_system.label("input"))
-            .add_system(mouse_click_system.label("input"))
-            .add_system(debug_print_input_system)
-            .add_system(player_movement_system.label("player_movement"))
-            .add_system(camera_follow_system.after("player_movement"))
-            .add_system(player_movement_watcher.after("player_movement"))
-            .add_system(
-                enemy_system
-                    .label("enemy_movement")
-                    .after("player_movement"),
-            )
-            .add_system(animate_move_system.after("enemy_movement"))
-            .add_system(global_turn_counter_system.after("enemy_movement"))
+        let state = crate::State::Game;
+        app.add_system_set(SystemSet::on_enter(state).with_system(setup))
             .add_system_set(
-                SystemSet::new()
+                SystemSet::on_update(state)
+                    .with_system(animate_sprite_system)
+                    .with_system(input_handle_system.label("input"))
+                    .with_system(mouse_click_system.label("input"))
+                    .with_system(debug_print_input_system)
+                    .with_system(player_power_system)
+                    .with_system(player_movement_system.label("player_movement"))
+                    .with_system(camera_follow_system.after("player_movement"))
+                    .with_system(player_movement_watcher.after("player_movement"))
+                    .with_system(
+                        enemy_system
+                            .label("enemy_movement")
+                            .after("player_movement"),
+                    )
+                    .with_system(animate_move_system.after("enemy_movement"))
+                    .with_system(global_turn_counter_system.after("enemy_movement"))
                     .with_system(mouse_click_debug_system.after("input"))
-                    .with_system(input_event_debug_system.after("input")),
+                    .with_system(input_event_debug_system.after("input"))
+                    .with_system(health_watcher_system.after("enemy_movement"))
+                    .with_system(player_damaged_effect_system.after("enemy_movement"))
+                    .with_system(sfx_system)
+                    .with_system(waggle_system)
+                    .with_system(super::projectile::projectile_watcher_system)
+                    .with_system(super::projectile::projectile_system),
             )
-            .add_system(health_watcher_system.after("enemy_movement"))
-            .add_system(player_damaged_effect_system.after("enemy_movement"))
-            .add_system(sfx_system)
-            .add_system(waggle_system)
-            .add_system(super::projectile::projectile_system)
+            .add_system_set(SystemSet::on_exit(state))
             .add_plugin(TimedRemovalPlugin)
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
+            .add_event::<super::events::PowerEvent>()
             .add_event::<MouseClickEvent>()
             .insert_resource(GlobalTurnCounter::default());
         super::tilemap::build(app);
@@ -88,6 +92,7 @@ fn waggle_system(
         waggle.update(&mut transform.rotation, &time.delta());
         if waggle.finished() {
             println!("Waggle Finished");
+            transform.rotation = Quat::from_rotation_z(0.0);
             commands.entity(entity).remove::<Waggle>();
         }
     }
@@ -234,6 +239,11 @@ fn input_handle_system(input: Res<Input<KeyCode>>, mut input_events: EventWriter
         input_events.send(InputEvent::Wait);
         return;
     }
+
+    if input.just_pressed(KeyCode::Q) {
+        input_events.send(InputEvent::Power);
+        return;
+    }
 }
 
 fn input_event_debug_system(mut input_events: EventReader<InputEvent>) {
@@ -272,11 +282,13 @@ fn player_damaged_effect_system(
             InfoEvent::PlayerHurt => {
                 let player_entity = player_query.single();
                 let timed_removal: TimedRemoval<DirectionalSpriteAnimationSpecial> =
-                    TimedRemoval::new(Duration::from_millis(500));
+                    TimedRemoval::new(Duration::from_millis(220));
+                let waggle = Waggle::new(8, 0.2, 0.2, 10.0);
                 commands
                     .entity(player_entity)
                     .insert(DirectionalSpriteAnimationSpecial(0))
-                    .insert(timed_removal);
+                    .insert(timed_removal)
+                    .insert(waggle);
             }
             _ => (),
         }
@@ -403,6 +415,7 @@ fn player_movement_watcher(
 
 fn player_movement_system(
     mut game_event_writer: EventWriter<GameEvent>,
+    mut power_event_writer: EventWriter<PowerEvent>,
     mut input_events: EventReader<InputEvent>,
     mut move_query: QuerySet<(
         QueryState<(Entity, &TilePos), With<Player>>,
@@ -455,7 +468,61 @@ fn player_movement_system(
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 }
             }
-            InputEvent::Power => (),
+            InputEvent::Power => {
+                let can_take_turn = global_turn_counter
+                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                if can_take_turn {
+                    power_event_writer.send(PowerEvent::PowerFired);
+                    local_turn_counter.incr();
+                    game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                }
+            }
+        }
+    }
+}
+
+fn player_power_system(
+    mut query: QuerySet<(
+        QueryState<(&Transform, &TilePos, &Facing), With<Player>>,
+        QueryState<(Entity, &TilePos), With<Enemy>>,
+    )>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut power_event_reader: EventReader<PowerEvent>,
+    mut map_query: MapQuery,
+    tile_type_query: Query<&HasTileType>,
+) {
+    for event in power_event_reader.iter() {
+        match event {
+            PowerEvent::PowerFired => {
+                let (start_pos, tilepos, direction): (Vec3, TilePos, MapDirection) = {
+                    let (transform, tilepos, facing) = query.q0().single();
+                    (
+                        (*transform).translation.clone(),
+                        tilepos.clone(),
+                        facing.0.clone(),
+                    )
+                };
+                let fate = super::projectile::scan_to_endpoint(
+                    &tilepos,
+                    &direction,
+                    &query.q1(),
+                    &mut map_query,
+                    &tile_type_query,
+                );
+                let end_point = fate.tile_pos().clone();
+                let end_target_entity = fate.entity();
+                super::projectile::spawn_projectile(
+                    &mut commands,
+                    &asset_server,
+                    &mut texture_atlases,
+                    direction,
+                    start_pos,
+                    end_point,
+                    end_target_entity,
+                );
+            }
         }
     }
 }
@@ -463,13 +530,14 @@ fn player_movement_system(
 fn debug_print_input_system(
     mut query: QuerySet<(
         QueryState<(&Transform, &GlobalTransform)>,
-        QueryState<(&Player)>,
+        QueryState<Entity, With<Player>>,
         QueryState<(&TilePos, &Transform), With<Player>>,
     )>,
     input: Res<Input<KeyCode>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut info_event_writer: EventWriter<InfoEvent>,
 ) {
     if input.just_pressed(KeyCode::P) {
         for (trans, global_trans) in query.q0().iter() {
@@ -477,16 +545,28 @@ fn debug_print_input_system(
         }
     }
 
+    /*
     if input.just_pressed(KeyCode::T) {
         let (tilepos, player_position) = query.q2().single();
         let end_point = TilePos(tilepos.0, tilepos.1 - 2);
         spawn_projectile(
-            commands,
+            &mut commands,
             asset_server,
             texture_atlases,
             player_position.translation.clone(),
             end_point,
         );
+    }
+     */
+
+    if input.just_pressed(KeyCode::G) {
+        let player_entity = query.q1().single();
+        commands
+            .entity(player_entity)
+            .insert(Waggle::new(5, -0.4, 0.4, 10.0));
+    }
+    if input.just_pressed(KeyCode::H) {
+        info_event_writer.send(InfoEvent::PlayerHurt);
     }
 }
 fn setup(
@@ -518,7 +598,6 @@ fn setup(
     };
     commands
         .spawn_bundle(TileResidentBundle::new(3, start_point, atlas_handle, 1))
-        .insert(Waggle::new(100, -0.4, 0.4, 0.01))
         .insert(CameraFollow {
             x_threshold: 300.0,
             y_threshold: 200.0,

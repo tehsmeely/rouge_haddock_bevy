@@ -12,13 +12,26 @@ use winit::window::Icon;
 mod game;
 mod helpers;
 mod map_gen;
+mod menu;
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+enum State {
+    Loading,
+    MainMenu,
+    Game,
+}
 
 fn main() {
+    let initial_state=
+        // TODO: This is possibly wrong for debug purposes
+        State::Game;
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(TilemapPlugin)
         .add_plugin(AudioPlugin)
         .add_plugin(crate::game::Plugin)
+        .add_plugin(crate::menu::Plugin)
+        .add_state(initial_state)
         .add_system(setup_window_title)
         .run();
 }

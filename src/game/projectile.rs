@@ -1,15 +1,21 @@
 use super::tilemap::TilePosExt;
-use crate::game::components::{DirectionalSpriteAnimation, Facing, MapDirection};
+use crate::game::components::{DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType};
+use crate::game::events::GameEvent;
+use crate::game::tilemap::HasTileType;
+use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
+use bevy::app::EventWriter;
 use bevy::asset::{AssetServer, Assets};
 use bevy::core::{Time, Timer};
 use bevy::ecs::change_detection::ResMut;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::prelude::{Commands, Query, Res};
+use bevy::ecs::prelude::{Commands, Local, Query, Res, With};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, SpriteBundle, TextureAtlas};
 use bevy::prelude::{SpriteSheetBundle, Transform};
-use bevy_ecs_tilemap::TilePos;
+use bevy_ecs_tilemap::{MapQuery, TilePos};
 use log::debug;
+use num::Signed;
+use std::collections::HashMap;
 
 pub enum ProjectileEvent {
     ProjectileLaunched,
@@ -21,20 +27,51 @@ pub struct Projectile {
     end_point: TilePos,
     speed: f32,
     finish_point_threshold: f32,
+    damage: usize,
+    end_target_entity: Option<Entity>,
 }
 
 impl Projectile {
-    fn new(end_point: TilePos, speed: f32) -> Self {
+    fn new(end_point: TilePos, speed: f32, end_target_entity: Option<Entity>) -> Self {
         Self {
             end_point,
             speed,
-            finish_point_threshold: 64f32 / 100.0,
+            finish_point_threshold: 32.0,
+            damage: 1usize,
+            end_target_entity,
+        }
+    }
+}
+
+/// This system only progresses turn progress if all projectiles have ceased to exist
+pub fn projectile_watcher_system(
+    mut projectile_query: Query<Entity, With<Projectile>>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    mut local_turn_counter: Local<TurnCounter>,
+    mut game_event_writer: EventWriter<GameEvent>,
+    mut frame_delay: Local<usize>,
+) {
+    // [frame_delay] protects against the system running when we enter the PlayerPowerEffect phase but before
+    // the stage has spawned the projectile - because spawns from [Commands] happen in a later stage
+    // waiting to see no projectiles twice will cause one frame cycle for cases where we don't fire a projectile
+    // If this is a problem, this system would be run in a stage AFTER the spawning happens
+    if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::PlayerPowerEffect) {
+        if projectile_query.is_empty() {
+            if *frame_delay > 1 {
+                game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerPowerEffect));
+                local_turn_counter.incr();
+            } else {
+                *frame_delay += 1;
+            }
+        } else {
+            *frame_delay = 0;
         }
     }
 }
 
 pub fn projectile_system(
     mut query: Query<(Entity, &mut Transform, &mut Projectile)>,
+    mut health_query: Query<&mut Health>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
@@ -52,24 +89,116 @@ pub fn projectile_system(
         {
             debug!("Despawning projectile: {:?}", entity);
             commands.entity(entity).despawn();
-        }
-
-        if distance_this_step.x.abs() > distance_to_travel.x.abs()
-            && distance_this_step.y.abs() > distance_to_travel.y.abs()
-        {
-            debug!("(2) Despawning projectile: {:?}", entity);
-            commands.entity(entity).despawn();
+            if let Some(damage_entity) = projectile.end_target_entity {
+                if let Ok(mut health) = health_query.get_mut(damage_entity) {
+                    health.decr_by(projectile.damage);
+                }
+            }
         }
     }
 }
 
+// TODO: Move me
+fn get_tiletype(t: &TilePos, q: &Query<&HasTileType>, mut map_query: &mut MapQuery) -> TileType {
+    let tile_entity = map_query.get_tile_entity(t.clone(), 0, 0);
+    match tile_entity {
+        Ok(entity) => {
+            let type_ = q.get(entity);
+            match type_ {
+                Ok(tt) => tt.0.clone(),
+                Err(_) => TileType::WALL,
+            }
+        }
+        Err(_) => TileType::WALL,
+    }
+}
+
+pub enum ProjectileFate {
+    EndNoTarget(TilePos),
+    EndHitTarget((TilePos, Entity)),
+}
+
+impl ProjectileFate {
+    pub fn tile_pos(&self) -> &TilePos {
+        match self {
+            Self::EndNoTarget(tp) => &tp,
+            Self::EndHitTarget((tp, _entity)) => &tp,
+        }
+    }
+    pub fn entity(&self) -> Option<Entity> {
+        match self {
+            Self::EndNoTarget(_tp) => None,
+            Self::EndHitTarget((_tp, entity)) => Some(*entity),
+        }
+    }
+}
+
+pub fn scan_to_endpoint<T: Component>(
+    from: &TilePos,
+    direction: &MapDirection,
+    query: &Query<(Entity, &TilePos), With<T>>,
+    mut map_query: &mut MapQuery,
+    tiletype_query: &Query<&HasTileType>,
+) -> ProjectileFate {
+    let enemies_on_same_row_or_column: HashMap<TilePos, Entity> = {
+        let mut enemies = HashMap::with_capacity(5);
+        for (entity, tilepos) in query.iter() {
+            if tilepos.0 == from.0 || tilepos.1 == from.1 {
+                enemies.insert(tilepos.clone(), entity);
+            }
+        }
+        enemies
+    };
+    let step = direction.to_unit_translation().truncate();
+    let mut test_pos = from.clone();
+    let mut i = 0;
+    println!(
+        "Calculating projectile from: {:?} in direction {:?}",
+        from, step
+    );
+    loop {
+        i += 1;
+        if i > 50 {
+            panic!("Projectile loop did not terminate");
+        }
+        tilepos_add_vec(&mut test_pos, &step);
+        println!("Testing pos: {:?}", test_pos);
+        let tile_type = get_tiletype(&test_pos, &tiletype_query, &mut map_query);
+        if tile_type.can_enter() {
+            match enemies_on_same_row_or_column.get(&test_pos) {
+                Some(entity) => return ProjectileFate::EndHitTarget((test_pos, *entity)),
+                None => (),
+            }
+        } else {
+            return ProjectileFate::EndNoTarget(test_pos);
+        }
+    }
+}
+
+fn tilepos_add_vec(tilepos: &mut TilePos, vec: &Vec2) {
+    //TODO use the i32 add function defined somewhere else for each
+    if vec.x.is_negative() {
+        tilepos.0 -= vec.x.abs() as i32 as u32;
+    } else {
+        tilepos.0 += vec.x as i32 as u32;
+    }
+    if vec.y.is_negative() {
+        tilepos.1 -= vec.y.abs() as i32 as u32;
+    } else {
+        tilepos.1 += vec.y as i32 as u32;
+    }
+}
+
 pub fn spawn_projectile(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    mut texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    direction: MapDirection,
     start_pos: Vec3,
     end_point: TilePos,
+    end_target_entity: Option<Entity>,
 ) {
+    // TODO: Split out texture loading from spawning
     let texture_handle = asset_server.load("sprites/projectile_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(20.0, 20.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
@@ -80,7 +209,7 @@ pub fn spawn_projectile(
             ..Default::default()
         })
         .insert(Timer::from_seconds(0.1, true))
-        .insert((Facing(MapDirection::Down)))
+        .insert((Facing(direction)))
         .insert(DirectionalSpriteAnimation::new(4, 0))
-        .insert(Projectile::new(end_point, 150.));
+        .insert(Projectile::new(end_point, 500., end_target_entity));
 }

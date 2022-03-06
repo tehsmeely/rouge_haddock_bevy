@@ -124,7 +124,7 @@ impl Default for DirectionalSpriteAnimation {
             regular_frames_per_direction: 4,
             special_frames_per_direction: 0,
             frame_index: 0,
-            dirty: false,
+            dirty: true,
         }
     }
 }
@@ -259,11 +259,6 @@ impl Waggle {
             let rotation_this_step = rotation_direction * self.factor * delta.as_secs_f32();
 
             let new_rotation = self.current_rotation + rotation_this_step;
-            info!(
-                "new_rotation:{} = self.current_rotation:{} + rotation_this_step:{}",
-                new_rotation, self.current_rotation, rotation_this_step
-            );
-
             *current = Quat::from_rotation_z(new_rotation);
             self.current_rotation = new_rotation;
             // Target: 30
@@ -271,10 +266,10 @@ impl Waggle {
             // direction = 30-29 = 1 = 1.0
             // new = 31
             // new_dir = 30-31 = -1 = -1.0
-            let overshot = (new_rotation - target_rotation).signum() != rotation_direction;
+            let overshot = (target_rotation - new_rotation).signum() != rotation_direction;
 
             if overshot {
-                info!("Waggle reducing: {}->{}", self.count, self.count - 1);
+                debug!("Waggle reducing: {}->{}", self.count, self.count - 1);
                 self.count -= 1;
             }
         } else {
