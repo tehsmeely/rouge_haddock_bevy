@@ -10,6 +10,11 @@ pub enum InputEvent {
 }
 
 #[derive(Debug)]
+pub enum PowerEvent {
+    PowerFired,
+}
+
+#[derive(Debug)]
 pub enum GameEvent {
     PhaseComplete(GamePhase),
 }

@@ -50,13 +50,15 @@ impl GlobalTurnCounter {
 #[derive(Debug, PartialEq)]
 pub enum GamePhase {
     PlayerMovement,
+    PlayerPowerEffect,
     EnemyMovement,
 }
 
 impl GamePhase {
     fn next(&self) -> Self {
         match self {
-            GamePhase::PlayerMovement => GamePhase::EnemyMovement,
+            GamePhase::PlayerMovement => GamePhase::PlayerPowerEffect,
+            GamePhase::PlayerPowerEffect => GamePhase::EnemyMovement,
             GamePhase::EnemyMovement => GamePhase::PlayerMovement,
         }
     }
