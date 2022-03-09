@@ -8,6 +8,10 @@ use std::collections::HashMap;
 #[derive(Debug, Component)]
 pub struct Player;
 
+/// A Single component marker for the camera that presents game info
+#[derive(Debug, Component)]
+pub struct GameCamera;
+
 #[derive(Debug, Component)]
 pub struct CameraFollow {
     pub x_threshold: f32,

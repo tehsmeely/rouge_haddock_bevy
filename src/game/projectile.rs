@@ -43,7 +43,7 @@ impl Projectile {
     }
 }
 
-/// This system only progresses turn progress if all projectiles have ceased to exist
+/// This system only progresses turn phase if all projectiles have ceased to exist
 pub fn projectile_watcher_system(
     mut projectile_query: Query<Entity, With<Projectile>>,
     global_turn_counter: Res<GlobalTurnCounter>,

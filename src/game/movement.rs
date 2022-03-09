@@ -11,12 +11,13 @@ pub enum MoveDecision {
     Nothing,
     AttackAndMaybeMove((TilePos, MapDirection, Entity)),
     AttackAndDontMove((Entity, MapDirection)),
+    Turn(MapDirection),
 }
 
 impl MoveDecision {
     pub fn to_move_position(&self) -> Option<TilePos> {
         match self {
-            Self::Nothing | Self::AttackAndDontMove(_) => None,
+            Self::Nothing | Self::Turn(_) | Self::AttackAndDontMove(_) => None,
             Self::Move((tilepos, _)) | Self::AttackAndMaybeMove((tilepos, _, _)) => {
                 Some(tilepos.clone())
             }
@@ -90,7 +91,7 @@ pub fn decide_move(
 
     let mut decision = match can_move {
         true => MoveDecision::Move((destination_tilepos.clone(), move_direction.clone())),
-        false => MoveDecision::Nothing,
+        false => MoveDecision::Turn(move_direction.clone()),
     };
 
     for (target_entity, tilepos, maybe_player, maybe_enemy) in move_query.iter() {
@@ -105,7 +106,7 @@ pub fn decide_move(
                         target_entity,
                     );
                 } else {
-                    decision = MoveDecision::Nothing;
+                    decision = MoveDecision::Turn(move_direction.clone());
                 }
                 break;
             } else if maybe_enemy.is_some() {
@@ -117,7 +118,7 @@ pub fn decide_move(
                         target_entity,
                     );
                 } else {
-                    decision = MoveDecision::Nothing;
+                    decision = MoveDecision::Turn(move_direction.clone());
                 }
                 break;
             }
@@ -134,6 +135,7 @@ pub fn apply_move_single(
 ) {
     let (maybe_tilepos, maybe_facing) = match move_decision {
         MoveDecision::Nothing => (None, None),
+        MoveDecision::Turn(facing) => (None, Some(facing)),
         MoveDecision::Move((tilepos, facing)) => (Some(tilepos), Some(facing)),
         MoveDecision::AttackAndDontMove((target, facing)) => {
             let target_health = health_query.get_mut(*target);

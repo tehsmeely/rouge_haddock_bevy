@@ -18,6 +18,7 @@ use super::{
 use crate::game::events::{InfoEvent, PowerEvent};
 use crate::game::movement::{AttackCriteria, MoveDecisions};
 use crate::game::projectile::{spawn_projectile, ProjectileFate};
+use crate::game::ui::GameUiPlugin;
 use crate::map_gen::cell_map::CellMap;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy_kira_audio::Audio;
@@ -59,6 +60,7 @@ impl Plugin for GamePlugin {
             )
             .add_system_set(SystemSet::on_exit(state))
             .add_plugin(TimedRemovalPlugin)
+            .add_plugin(GameUiPlugin)
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
@@ -143,7 +145,7 @@ fn animate_move_system(mut query: Query<(&mut Transform, &mut MovementAnimate)>)
 fn camera_follow_system(
     mut query: QuerySet<(
         QueryState<(&Transform, &CameraFollow)>,
-        QueryState<&mut Transform, With<Camera>>,
+        QueryState<&mut Transform, With<GameCamera>>,
     )>,
 ) {
     let mut pos = query.q0().get_single().ok_log().map(|(transform, follow)| {
@@ -170,7 +172,7 @@ fn camera_follow_system(
 fn mouse_click_system(
     input: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    camera_query: Query<&Transform, With<Camera>>,
+    camera_query: Query<&Transform, With<GameCamera>>,
     mut mouse_event_writer: EventWriter<MouseClickEvent>,
 ) {
     let mouse_button = {
@@ -588,7 +590,9 @@ fn setup(
         &cell_map,
         border_size,
     );
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands
+        .spawn_bundle(OrthographicCameraBundle::new_2d())
+        .insert(GameCamera);
     let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 5, 4);
     let atlas_handle = texture_atlases.add(atlas);
