@@ -17,11 +17,12 @@ pub enum PowerEvent {
 #[derive(Debug)]
 pub enum GameEvent {
     PhaseComplete(GamePhase),
+    PlayerDied,
 }
 
 #[derive(Debug)]
 pub enum InfoEvent {
-    // Events specifically for info and not necessarilly drive systems
+    // Events specifically for info and not necessarily drive systems
     EnemyKilled,
     PlayerHurt,
     PlayerMoved,

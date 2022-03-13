@@ -62,9 +62,8 @@ impl TilePosExt for TilePos {
 #[derive(Debug, Component)]
 pub struct HasTileType(pub TileType);
 
-pub fn build(app: &mut App) {
-    app.add_system(crate::helpers::texture::set_texture_filters_to_nearest);
-    //.add_startup_system(init_tilemap);
+pub fn cleanup(mut commands: Commands, mut map_query: MapQuery) {
+    map_query.despawn(&mut commands, 0);
 }
 
 pub fn init_tilemap(
@@ -125,24 +124,6 @@ pub fn init_tilemap(
         println!();
     }
 
-    /*
-    for (j, row) in DEBUG_MAP.iter().enumerate() {
-        for (i, c) in row.chars().enumerate() {
-            let pos = TilePos(i as u32, j as u32);
-            let tile_type = match c {
-                'W' => TileType::WALL,
-                ' ' => TileType::WATER,
-                _ => TileType::WATER,
-            };
-            layer_builder
-                .set_tile(pos.clone(), tile_type.to_raw_tile().into())
-                .unwrap();
-            let tile_entity = layer_builder.get_tile_entity(&mut commands, pos).unwrap();
-            commands.entity(tile_entity).insert(HasTileType(tile_type));
-        }
-    }
-     */
-
     // Builds the layer.
     // Note: Once this is called you can no longer edit the layer until a hard sync in bevy.
     let layer_entity = map_query.build_layer(commands, layer_builder, texture_handle);
@@ -158,27 +139,6 @@ pub fn init_tilemap(
         .insert(Transform::from_xyz(0.0, 0.0, 0.0))
         .insert(GlobalTransform::default());
 }
-
-const DEBUG_MAP: [&str; 18] = [
-    "WWWWWWWWWWWWWWWWW",
-    "WWWF          EFW",
-    "WWW  E        WWW",
-    "WE        S     W",
-    "W    F         FW",
-    "WWWWWW       WW W",
-    "W F  W        W W",
-    "W    W        WFW",
-    "WWW          WW W",
-    "WFW             W",
-    "W W       E     W",
-    "W W             W",
-    "W W       E     W",
-    "W W E           W",
-    "W W       E     W",
-    "W W             W",
-    "W               W",
-    "WWWWWWWWWWWWWWWWW",
-];
 
 mod helpers {
     pub fn add(u: u32, i: i32) -> Option<u32> {

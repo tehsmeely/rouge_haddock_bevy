@@ -1,5 +1,5 @@
 use rand::prelude::SliceRandom;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
 
 #[derive(Debug)]
@@ -76,6 +76,37 @@ where
 }
 
 impl CellMap<i32> {
+    pub fn recalculate(&self, start_point: (i32, i32)) -> Self {
+        let mut check_cells: VecDeque<((i32, i32), i32)> = VecDeque::new();
+        let mut new_self: HashMap<(i32, i32), i32> = HashMap::new();
+
+        fn get_neighbours((x, y): (i32, i32)) -> Vec<(i32, i32)> {
+            super::map_gen::ORTHOG_NEIGHBOURS
+                .into_iter()
+                .map(|(i, j)| (x + i, y + j))
+                .collect()
+        }
+
+        check_cells.push_back((start_point, 0));
+
+        while let Some((cell, cost)) = check_cells.pop_front() {
+            new_self.insert(cell, cost);
+            for n in get_neighbours(cell).into_iter() {
+                if self.0.contains(&n) {
+                    let new_cost = cost + 1;
+                    let should_walk = match new_self.get(&n) {
+                        Some(prev_cost) => new_cost < *prev_cost,
+                        None => true,
+                    };
+                    if should_walk {
+                        check_cells.push_back((n, new_cost));
+                    }
+                }
+            }
+        }
+        Self(new_self)
+    }
+
     pub fn distribute_points_by_cost(&self, n: usize) -> Vec<(i32, i32)> {
         // Find min, max, and mid cost
         // Fetch all cells where min < cost < max (i.e drop min/max)

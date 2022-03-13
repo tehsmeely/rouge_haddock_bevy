@@ -19,6 +19,7 @@ use crate::game::events::{InfoEvent, PowerEvent};
 use crate::game::movement::{AttackCriteria, MoveDecisions};
 use crate::game::projectile::{spawn_projectile, ProjectileFate};
 use crate::game::ui::GameUiPlugin;
+use crate::helpers::cleanup::recursive_cleanup;
 use crate::map_gen::cell_map::CellMap;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy_kira_audio::Audio;
@@ -55,19 +56,27 @@ impl Plugin for GamePlugin {
                     .with_system(player_damaged_effect_system.after("enemy_movement"))
                     .with_system(sfx_system)
                     .with_system(waggle_system)
+                    .with_system(player_death_system)
                     .with_system(super::projectile::projectile_watcher_system)
                     .with_system(super::projectile::projectile_system),
             )
-            .add_system_set(SystemSet::on_exit(state))
+            .add_system_set(
+                SystemSet::on_exit(state)
+                    .with_system(recursive_cleanup::<GameOnly>)
+                    .with_system(super::tilemap::cleanup),
+            )
             .add_plugin(TimedRemovalPlugin)
             .add_plugin(GameUiPlugin)
+            .add_system(
+                // TODO: when pre-loading is implemented we can do away with this (i think)
+                crate::helpers::texture::set_texture_filters_to_nearest,
+            )
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
             .add_event::<super::events::PowerEvent>()
             .add_event::<MouseClickEvent>()
             .insert_resource(GlobalTurnCounter::default());
-        super::tilemap::build(app);
     }
 }
 
@@ -77,9 +86,25 @@ fn global_turn_counter_system(
 ) {
     for event in game_event_reader.iter() {
         match event {
-            super::events::GameEvent::PhaseComplete(phase) => {
+            GameEvent::PhaseComplete(phase) => {
                 global_turn_counter.step(&phase);
                 info!("New Turn: {:?}", global_turn_counter);
+            }
+            GameEvent::PlayerDied => (),
+        }
+    }
+}
+
+fn player_death_system(
+    mut game_event_reader: EventReader<GameEvent>,
+    mut game_state: ResMut<State<crate::State>>,
+) {
+    for event in game_event_reader.iter() {
+        match event {
+            GameEvent::PhaseComplete(_) => (),
+            GameEvent::PlayerDied => {
+                info!("Player died");
+                game_state.set(crate::State::MainMenu);
             }
         }
     }
@@ -303,6 +328,7 @@ fn health_watcher_system(
     mut info_event_writer: EventWriter<InfoEvent>,
     mut commands: Commands,
     mut known_player_hp: Local<Option<usize>>,
+    mut game_event_writer: EventWriter<GameEvent>,
 ) {
     for (entity, health) in enemy_health.iter() {
         if health.hp == 0 {
@@ -323,6 +349,7 @@ fn health_watcher_system(
         }
         *known_player_hp = Some(health.hp);
         if health.hp == 0 {
+            game_event_writer.send(GameEvent::PlayerDied);
             println!("Player! died {:?}", entity);
         }
     }
@@ -423,7 +450,9 @@ fn player_movement_system(
         QueryState<(Entity, &TilePos), With<Player>>,
         QueryState<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
         QueryState<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
+        QueryState<&mut Facing, With<Player>>,
     )>,
+    mut power_query: Query<&mut PowerCharges, With<Player>>,
     mut health_query: Query<(&mut Health)>,
     tile_type_query: Query<(&HasTileType)>,
     mut map_query: MapQuery,
@@ -460,12 +489,21 @@ fn player_movement_system(
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 }
             }
-            InputEvent::TurnDirection(_dir) => (),
+            InputEvent::TurnDirection(dir) => {
+                let can_take_turn = global_turn_counter
+                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                if can_take_turn {
+                    info!("Player Turning: {:?}", dir);
+                    move_query.q3().single_mut().0 = dir.clone();
+                    local_turn_counter.incr();
+                    game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                }
+            }
             InputEvent::Wait => {
                 let can_take_turn = global_turn_counter
                     .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
-                    println!("Player Waiting");
+                    info!("Player Waiting");
                     local_turn_counter.incr();
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 }
@@ -474,9 +512,13 @@ fn player_movement_system(
                 let can_take_turn = global_turn_counter
                     .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
-                    power_event_writer.send(PowerEvent::PowerFired);
-                    local_turn_counter.incr();
-                    game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                    let mut power_charges = power_query.single_mut();
+                    if power_charges.charges > 0 {
+                        power_event_writer.send(PowerEvent::PowerFired);
+                        local_turn_counter.incr();
+                        game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                        power_charges.use_charge();
+                    }
                 }
             }
         }
@@ -547,20 +589,6 @@ fn debug_print_input_system(
         }
     }
 
-    /*
-    if input.just_pressed(KeyCode::T) {
-        let (tilepos, player_position) = query.q2().single();
-        let end_point = TilePos(tilepos.0, tilepos.1 - 2);
-        spawn_projectile(
-            &mut commands,
-            asset_server,
-            texture_atlases,
-            player_position.translation.clone(),
-            end_point,
-        );
-    }
-     */
-
     if input.just_pressed(KeyCode::G) {
         let player_entity = query.q1().single();
         commands
@@ -592,6 +620,7 @@ fn setup(
     );
     commands
         .spawn_bundle(OrthographicCameraBundle::new_2d())
+        .insert(GameOnly)
         .insert(GameCamera);
     let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 5, 4);
@@ -606,8 +635,9 @@ fn setup(
             x_threshold: 300.0,
             y_threshold: 200.0,
         })
+        .insert(PowerCharges::new(3))
         .insert(Player);
-
+    commands.insert_resource(cell_map);
     add_sharks(
         &mut commands,
         &asset_server,

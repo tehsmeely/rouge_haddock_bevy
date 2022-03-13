@@ -58,7 +58,7 @@ fn pos_is_valid(pos: (i32, i32), grid_size: (i32, i32)) -> bool {
     x && y
 }
 
-const ORTHOG_NEIGHBOURS: [(i32, i32); 4] = [(0, 1), (1, 0), (-1, 0), (0, -1)];
+pub const ORTHOG_NEIGHBOURS: [(i32, i32); 4] = [(0, 1), (1, 0), (-1, 0), (0, -1)];
 const NEIGHBOURS: [(i32, i32); 9] = [
     (1, 1),
     (0, 1),

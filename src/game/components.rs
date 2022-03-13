@@ -5,6 +5,9 @@ use bevy_ecs_tilemap::{Tile, TilePos};
 use interpolation::Lerp;
 use std::collections::HashMap;
 
+#[derive(Debug, Component, Default)]
+pub struct GameOnly;
+
 #[derive(Debug, Component)]
 pub struct Player;
 
@@ -341,6 +344,31 @@ impl Health {
     }
 }
 
+#[derive(Component, Debug)]
+pub struct PowerCharges {
+    pub charges: usize,
+}
+
+impl Default for PowerCharges {
+    fn default() -> Self {
+        Self { charges: 1 }
+    }
+}
+
+impl PowerCharges {
+    pub fn new(charges: usize) -> Self {
+        Self { charges }
+    }
+    pub fn use_charge(&mut self) -> bool {
+        if self.charges > 0 {
+            self.charges -= 1;
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Bundle, Default)]
 pub struct TileResidentBundle {
     #[bundle]
@@ -351,6 +379,7 @@ pub struct TileResidentBundle {
     tile_pos: TilePos,
     movement_animate: MovementAnimate,
     health: Health,
+    game_only: GameOnly,
 }
 
 impl TileResidentBundle {
@@ -373,6 +402,7 @@ impl TileResidentBundle {
             tile_pos: (tile_pos),
             movement_animate: (MovementAnimate::default()),
             health: Health { hp: initial_hp },
+            game_only: GameOnly {},
         }
     }
 }
