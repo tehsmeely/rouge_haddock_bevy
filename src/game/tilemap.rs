@@ -13,6 +13,7 @@ pub trait TilePosExt {
     fn from_world_pos(x: f32, y: f32) -> Self;
 
     fn as_vec2(&self) -> Vec2;
+    fn as_i32s(&self) -> (i32, i32);
 }
 impl TilePosExt for TilePos {
     fn add(&self, add: (i32, i32)) -> Self {
@@ -24,6 +25,9 @@ impl TilePosExt for TilePos {
 
     fn as_vec2(&self) -> Vec2 {
         Vec2::new(self.0 as f32, self.1 as f32)
+    }
+    fn as_i32s(&self) -> (i32, i32) {
+        (self.0 as i32, self.1 as i32)
     }
 
     fn to_world_pos(&self, z: f32) -> Vec3 {

@@ -117,6 +117,29 @@ impl Default for Facing {
     }
 }
 
+/// Struct for handling animated sprite frames from a spritesheet where all frames are used
+#[derive(Debug, Component)]
+pub struct SimpleSpriteAnimation {
+    pub frames: usize,
+    pub frame_index: usize,
+}
+
+impl SimpleSpriteAnimation {
+    pub fn new(frames: usize) -> Self {
+        Self {
+            frames,
+            frame_index: 0,
+        }
+    }
+    pub fn incr(&mut self) {
+        if self.frame_index < (self.frames - 1) {
+            self.frame_index += 1;
+        } else {
+            self.frame_index = 0
+        }
+    }
+}
+
 /// Struct for handling animated sprite frames from a spritesheet where frames depend on direction
 #[derive(Debug, Component)]
 pub struct DirectionalSpriteAnimation {

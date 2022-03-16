@@ -21,6 +21,7 @@ use crate::game::projectile::{spawn_projectile, ProjectileFate};
 use crate::game::ui::GameUiPlugin;
 use crate::helpers::cleanup::recursive_cleanup;
 use crate::map_gen::cell_map::CellMap;
+use bevy::input::gamepad::{gamepad_connection_system, gamepad_event_system};
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy_kira_audio::Audio;
 use std::io::Chain;
@@ -32,51 +33,57 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         let state = crate::State::Game;
-        app.add_system_set(SystemSet::on_enter(state).with_system(setup))
-            .add_system_set(
-                SystemSet::on_update(state)
-                    .with_system(animate_sprite_system)
-                    .with_system(input_handle_system.label("input"))
-                    .with_system(mouse_click_system.label("input"))
-                    .with_system(debug_print_input_system)
-                    .with_system(player_power_system)
-                    .with_system(player_movement_system.label("player_movement"))
-                    .with_system(camera_follow_system.after("player_movement"))
-                    .with_system(player_movement_watcher.after("player_movement"))
-                    .with_system(
-                        enemy_system
-                            .label("enemy_movement")
-                            .after("player_movement"),
-                    )
-                    .with_system(animate_move_system.after("enemy_movement"))
-                    .with_system(global_turn_counter_system.after("enemy_movement"))
-                    .with_system(mouse_click_debug_system.after("input"))
-                    .with_system(input_event_debug_system.after("input"))
-                    .with_system(health_watcher_system.after("enemy_movement"))
-                    .with_system(player_damaged_effect_system.after("enemy_movement"))
-                    .with_system(sfx_system)
-                    .with_system(waggle_system)
-                    .with_system(player_death_system)
-                    .with_system(super::projectile::projectile_watcher_system)
-                    .with_system(super::projectile::projectile_system),
-            )
-            .add_system_set(
-                SystemSet::on_exit(state)
-                    .with_system(recursive_cleanup::<GameOnly>)
-                    .with_system(super::tilemap::cleanup),
-            )
-            .add_plugin(TimedRemovalPlugin)
-            .add_plugin(GameUiPlugin)
-            .add_system(
-                // TODO: when pre-loading is implemented we can do away with this (i think)
-                crate::helpers::texture::set_texture_filters_to_nearest,
-            )
-            .add_event::<super::events::GameEvent>()
-            .add_event::<super::events::InputEvent>()
-            .add_event::<super::events::InfoEvent>()
-            .add_event::<super::events::PowerEvent>()
-            .add_event::<MouseClickEvent>()
-            .insert_resource(GlobalTurnCounter::default());
+        app.add_system_set(
+            SystemSet::on_enter(state)
+                .with_system(setup)
+                .with_system(add_test_mesh2d),
+        )
+        .add_system_set(
+            SystemSet::on_update(state)
+                .with_system(animate_sprite_system)
+                .with_system(simple_animate_sprite_system)
+                .with_system(input_handle_system.label("input"))
+                .with_system(mouse_click_system.label("input"))
+                .with_system(gamepad_input_handle_system.label("input"))
+                .with_system(debug_print_input_system)
+                .with_system(player_power_system)
+                .with_system(player_movement_system.label("player_movement"))
+                .with_system(camera_follow_system.after("player_movement"))
+                .with_system(player_movement_watcher.after("player_movement"))
+                .with_system(
+                    enemy_system
+                        .label("enemy_movement")
+                        .after("player_movement"),
+                )
+                .with_system(animate_move_system.after("enemy_movement"))
+                .with_system(global_turn_counter_system.after("enemy_movement"))
+                .with_system(mouse_click_debug_system.after("input"))
+                .with_system(input_event_debug_system.after("input"))
+                .with_system(health_watcher_system.after("enemy_movement"))
+                .with_system(player_damaged_effect_system.after("enemy_movement"))
+                .with_system(sfx_system)
+                .with_system(waggle_system)
+                .with_system(player_death_system)
+                .with_system(super::projectile::projectile_watcher_system)
+                .with_system(super::projectile::projectile_system),
+        )
+        .add_system_set(
+            SystemSet::on_exit(state)
+                .with_system(recursive_cleanup::<GameOnly>)
+                .with_system(super::tilemap::cleanup),
+        )
+        .add_plugin(TimedRemovalPlugin)
+        .add_plugin(GameUiPlugin)
+        .add_system(
+            // TODO: when pre-loading is implemented we can do away with this (i think)
+            crate::helpers::texture::set_texture_filters_to_nearest,
+        )
+        .add_event::<super::events::GameEvent>()
+        .add_event::<super::events::InputEvent>()
+        .add_event::<super::events::InfoEvent>()
+        .add_event::<super::events::PowerEvent>()
+        .add_event::<MouseClickEvent>()
+        .insert_resource(GlobalTurnCounter::default());
     }
 }
 
@@ -122,6 +129,23 @@ fn waggle_system(
             transform.rotation = Quat::from_rotation_z(0.0);
             commands.entity(entity).remove::<Waggle>();
         }
+    }
+}
+
+fn simple_animate_sprite_system(
+    time: Res<Time>,
+    mut query: Query<(
+        &mut Timer,
+        &mut TextureAtlasSprite,
+        &mut SimpleSpriteAnimation,
+    )>,
+) {
+    for (mut timer, mut sprite, mut animation) in query.iter_mut() {
+        timer.tick(time.delta());
+        if timer.finished() {
+            animation.incr();
+        }
+        sprite.index = animation.frame_index;
     }
 }
 
@@ -270,6 +294,33 @@ fn input_handle_system(input: Res<Input<KeyCode>>, mut input_events: EventWriter
     if input.just_pressed(KeyCode::Q) {
         input_events.send(InputEvent::Power);
         return;
+    }
+}
+
+fn gamepad_input_handle_system(
+    input: Res<Input<GamepadButton>>,
+    gamepads: Res<Gamepads>,
+    mut input_events: EventWriter<InputEvent>,
+) {
+    // TODO: Flesh this out and add proper gamepad support eventually
+    for gamepad in gamepads.iter().cloned() {
+        let new_direction = {
+            if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadLeft)) {
+                Some(MapDirection::Left)
+            } else if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadRight)) {
+                Some(MapDirection::Right)
+            } else if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadUp)) {
+                Some(MapDirection::Up)
+            } else if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadDown)) {
+                Some(MapDirection::Down)
+            } else {
+                None
+            }
+        };
+        if let Some(dir) = new_direction {
+            input_events.send(InputEvent::MoveDirection(dir));
+            return;
+        }
     }
 }
 
@@ -576,11 +627,13 @@ fn debug_print_input_system(
         QueryState<(&Transform, &GlobalTransform)>,
         QueryState<Entity, With<Player>>,
         QueryState<(&TilePos, &Transform), With<Player>>,
+        QueryState<&TilePos, With<Enemy>>,
     )>,
     input: Res<Input<KeyCode>>,
+    mut cell_map: ResMut<CellMap<i32>>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut info_event_writer: EventWriter<InfoEvent>,
 ) {
     if input.just_pressed(KeyCode::P) {
@@ -597,6 +650,29 @@ fn debug_print_input_system(
     }
     if input.just_pressed(KeyCode::H) {
         info_event_writer.send(InfoEvent::PlayerHurt);
+    }
+
+    if input.just_pressed(KeyCode::O) {
+        info!("Spawning more sharks");
+        let exclude_positions = query
+            .q3()
+            .iter()
+            .map(|tilepos: &TilePos| tilepos.as_i32s())
+            .collect::<Vec<(i32, i32)>>();
+        let start_point = {
+            let (TilePos(x, y), trans) = query.q2().single();
+            (*x as i32, *y as i32)
+        };
+        let recalculated_map = cell_map.recalculate(start_point);
+        add_sharks(
+            &mut commands,
+            &mut asset_server,
+            &mut texture_atlases,
+            4,
+            &recalculated_map,
+            Some(&exclude_positions),
+        );
+        *cell_map = recalculated_map;
     }
 }
 fn setup(
@@ -637,40 +713,71 @@ fn setup(
         })
         .insert(PowerCharges::new(3))
         .insert(Player);
-    commands.insert_resource(cell_map);
     add_sharks(
         &mut commands,
         &asset_server,
         &mut texture_atlases,
+        7,
         &cell_map,
+        None,
     );
+    commands.insert_resource(cell_map);
 }
 
 fn add_test_mesh2d(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
 ) {
     let start_pos = TilePos(22, 22).to_world_pos(20.0);
+    let height = 6000.0;
+    let offset_start_pos = Vec3::new(
+        start_pos.x + 14.0,
+        start_pos.y + 32.0 + (height / 2.0),
+        start_pos.z,
+    );
+    let material = materials.add(ColorMaterial::from(Color::rgb(
+        34.0 / 255.0,
+        32.0 / 255.0,
+        52.0 / 255.0,
+    )));
+    let mesh = meshes
+        .add(Mesh::from(shape::Quad::new(Vec2::new(3.0, height))))
+        .into();
     commands.spawn_bundle(MaterialMesh2dBundle {
-        mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
-        transform: Transform::from_translation(start_pos).with_scale(Vec3::splat(64.)),
-        material: materials.add(ColorMaterial::from(Color::PURPLE)),
+        mesh,
+        transform: Transform::from_translation(offset_start_pos),
+        material,
         ..Default::default()
     });
+    let texture_handle = asset_server.load("sprites/hook_spritesheet.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 1);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    commands
+        .spawn_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle,
+            transform: Transform::from_translation(start_pos),
+            ..Default::default()
+        })
+        .insert(GameOnly)
+        .insert(Timer::from_seconds(0.250, true))
+        .insert(SimpleSpriteAnimation::new(4));
 }
 
 fn add_sharks(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    num_sharks: usize,
     cell_map: &CellMap<i32>,
+    exclude_positions: Option<&Vec<(i32, i32)>>,
 ) {
     let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
-    let spawn_positions = cell_map.distribute_points_by_cost(7);
-    //for (x, y) in [(8, 9), (12, 12), (3, 10)].into_iter() {
+    let spawn_positions = cell_map.distribute_points_by_cost(num_sharks, exclude_positions);
     for (x, y) in spawn_positions.into_iter() {
         let tile_pos = TilePos(x as u32, y as u32);
         commands

@@ -92,7 +92,7 @@ impl CellMap<i32> {
         while let Some((cell, cost)) = check_cells.pop_front() {
             new_self.insert(cell, cost);
             for n in get_neighbours(cell).into_iter() {
-                if self.0.contains(&n) {
+                if self.0.contains_key(&n) {
                     let new_cost = cost + 1;
                     let should_walk = match new_self.get(&n) {
                         Some(prev_cost) => new_cost < *prev_cost,
@@ -107,7 +107,11 @@ impl CellMap<i32> {
         Self(new_self)
     }
 
-    pub fn distribute_points_by_cost(&self, n: usize) -> Vec<(i32, i32)> {
+    pub fn distribute_points_by_cost(
+        &self,
+        n: usize,
+        exclude_points: Option<&Vec<(i32, i32)>>,
+    ) -> Vec<(i32, i32)> {
         // Find min, max, and mid cost
         // Fetch all cells where min < cost < max (i.e drop min/max)
         // pick with weigh: 1/ distance from mid
@@ -119,13 +123,20 @@ impl CellMap<i32> {
             .0
             .iter()
             .filter_map(|(k, v)| {
-                if *v > min_cost && *v < max_cost {
+                let not_excluded = if let Some(excluded) = exclude_points {
+                    !excluded.contains(k)
+                } else {
+                    true
+                };
+                if *v > min_cost && *v < max_cost && not_excluded {
                     Some(k.clone())
                 } else {
                     None
                 }
             })
             .collect();
+
+        println!("{:?}", positions);
 
         let weights = |pos: &(i32, i32)| match self.0.get(pos) {
             Some(val) => mid_cost - (mid_cost - val).abs(),
