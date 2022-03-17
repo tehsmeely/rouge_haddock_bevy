@@ -24,6 +24,7 @@ use crate::map_gen::cell_map::CellMap;
 use bevy::input::gamepad::{gamepad_connection_system, gamepad_event_system};
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy_kira_audio::Audio;
+use std::cell::Cell;
 use std::io::Chain;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -33,57 +34,56 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         let state = crate::State::Game;
-        app.add_system_set(
-            SystemSet::on_enter(state)
-                .with_system(setup)
-                .with_system(add_test_mesh2d),
-        )
-        .add_system_set(
-            SystemSet::on_update(state)
-                .with_system(animate_sprite_system)
-                .with_system(simple_animate_sprite_system)
-                .with_system(input_handle_system.label("input"))
-                .with_system(mouse_click_system.label("input"))
-                .with_system(gamepad_input_handle_system.label("input"))
-                .with_system(debug_print_input_system)
-                .with_system(player_power_system)
-                .with_system(player_movement_system.label("player_movement"))
-                .with_system(camera_follow_system.after("player_movement"))
-                .with_system(player_movement_watcher.after("player_movement"))
-                .with_system(
-                    enemy_system
-                        .label("enemy_movement")
-                        .after("player_movement"),
-                )
-                .with_system(animate_move_system.after("enemy_movement"))
-                .with_system(global_turn_counter_system.after("enemy_movement"))
-                .with_system(mouse_click_debug_system.after("input"))
-                .with_system(input_event_debug_system.after("input"))
-                .with_system(health_watcher_system.after("enemy_movement"))
-                .with_system(player_damaged_effect_system.after("enemy_movement"))
-                .with_system(sfx_system)
-                .with_system(waggle_system)
-                .with_system(player_death_system)
-                .with_system(super::projectile::projectile_watcher_system)
-                .with_system(super::projectile::projectile_system),
-        )
-        .add_system_set(
-            SystemSet::on_exit(state)
-                .with_system(recursive_cleanup::<GameOnly>)
-                .with_system(super::tilemap::cleanup),
-        )
-        .add_plugin(TimedRemovalPlugin)
-        .add_plugin(GameUiPlugin)
-        .add_system(
-            // TODO: when pre-loading is implemented we can do away with this (i think)
-            crate::helpers::texture::set_texture_filters_to_nearest,
-        )
-        .add_event::<super::events::GameEvent>()
-        .add_event::<super::events::InputEvent>()
-        .add_event::<super::events::InfoEvent>()
-        .add_event::<super::events::PowerEvent>()
-        .add_event::<MouseClickEvent>()
-        .insert_resource(GlobalTurnCounter::default());
+        app.add_system_set(SystemSet::on_enter(state).with_system(setup))
+            .add_system_set(
+                SystemSet::on_update(state)
+                    .with_system(animate_sprite_system)
+                    .with_system(simple_animate_sprite_system)
+                    .with_system(input_handle_system.label("input"))
+                    .with_system(mouse_click_system.label("input"))
+                    .with_system(gamepad_input_handle_system.label("input"))
+                    .with_system(debug_print_input_system)
+                    .with_system(player_power_system)
+                    .with_system(player_movement_system.label("player_movement"))
+                    .with_system(camera_follow_system.after("player_movement"))
+                    .with_system(player_movement_watcher.after("player_movement"))
+                    .with_system(
+                        enemy_system
+                            .label("enemy_movement")
+                            .after("player_movement"),
+                    )
+                    .with_system(animate_move_system.after("enemy_movement"))
+                    .with_system(global_turn_counter_system.after("enemy_movement"))
+                    .with_system(mouse_click_debug_system.after("input"))
+                    .with_system(input_event_debug_system.after("input"))
+                    .with_system(health_watcher_system.after("enemy_movement"))
+                    .with_system(player_damaged_effect_system.after("enemy_movement"))
+                    .with_system(sfx_system)
+                    .with_system(waggle_system)
+                    .with_system(player_death_system)
+                    .with_system(end_of_game_watcher_system)
+                    .with_system(super::end_game::end_game_hook_system)
+                    .with_system(super::end_game::hooked_animation_system)
+                    .with_system(super::projectile::projectile_watcher_system)
+                    .with_system(super::projectile::projectile_system),
+            )
+            .add_system_set(
+                SystemSet::on_exit(state)
+                    .with_system(recursive_cleanup::<GameOnly>)
+                    .with_system(super::tilemap::cleanup),
+            )
+            .add_plugin(TimedRemovalPlugin)
+            .add_plugin(GameUiPlugin)
+            .add_system(
+                // TODO: when pre-loading is implemented we can do away with this (i think)
+                crate::helpers::texture::set_texture_filters_to_nearest,
+            )
+            .add_event::<super::events::GameEvent>()
+            .add_event::<super::events::InputEvent>()
+            .add_event::<super::events::InfoEvent>()
+            .add_event::<super::events::PowerEvent>()
+            .add_event::<MouseClickEvent>()
+            .insert_resource(GlobalTurnCounter::default());
     }
 }
 
@@ -97,8 +97,55 @@ fn global_turn_counter_system(
                 global_turn_counter.step(&phase);
                 info!("New Turn: {:?}", global_turn_counter);
             }
-            GameEvent::PlayerDied => (),
+            GameEvent::PlayerDied | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
         }
+    }
+}
+
+fn end_of_game_watcher_system(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
+    cell_map: ResMut<CellMap<i32>>,
+    player_query: Query<&TilePos, With<Player>>,
+    enemy_query: Query<Entity, With<Enemy>>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    mut already_triggered: Local<bool>,
+) {
+    let end_of_game = {
+        let turn_past_threshold = global_turn_counter.turn_count > 34;
+        let not_too_many_enemies = {
+            let enemy_count = enemy_query.iter().count();
+            enemy_count < 4
+        };
+        turn_past_threshold && not_too_many_enemies && !(*already_triggered)
+    };
+    if end_of_game {
+        info!(
+            "Spawning end of game hook! Turn: {}",
+            global_turn_counter.turn_count
+        );
+        let player_pos = player_query.single().as_i32s();
+        let new_cell_map = cell_map.recalculate(player_pos);
+        let spawn_pos = {
+            let (x, y) = new_cell_map
+                .distribute_points_by_cost(1, None)
+                .first()
+                .unwrap()
+                .to_owned();
+            TilePos(x as u32, y as u32)
+        };
+        super::end_game::spawn(
+            &mut meshes,
+            &mut materials,
+            &mut commands,
+            &mut texture_atlases,
+            &asset_server,
+            spawn_pos,
+        );
+        *already_triggered = true
     }
 }
 
@@ -108,7 +155,7 @@ fn player_death_system(
 ) {
     for event in game_event_reader.iter() {
         match event {
-            GameEvent::PhaseComplete(_) => (),
+            GameEvent::PhaseComplete(_) | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
             GameEvent::PlayerDied => {
                 info!("Player died");
                 game_state.set(crate::State::MainMenu);
@@ -722,48 +769,6 @@ fn setup(
         None,
     );
     commands.insert_resource(cell_map);
-}
-
-fn add_test_mesh2d(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut commands: Commands,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    asset_server: Res<AssetServer>,
-) {
-    let start_pos = TilePos(22, 22).to_world_pos(20.0);
-    let height = 6000.0;
-    let offset_start_pos = Vec3::new(
-        start_pos.x + 14.0,
-        start_pos.y + 32.0 + (height / 2.0),
-        start_pos.z,
-    );
-    let material = materials.add(ColorMaterial::from(Color::rgb(
-        34.0 / 255.0,
-        32.0 / 255.0,
-        52.0 / 255.0,
-    )));
-    let mesh = meshes
-        .add(Mesh::from(shape::Quad::new(Vec2::new(3.0, height))))
-        .into();
-    commands.spawn_bundle(MaterialMesh2dBundle {
-        mesh,
-        transform: Transform::from_translation(offset_start_pos),
-        material,
-        ..Default::default()
-    });
-    let texture_handle = asset_server.load("sprites/hook_spritesheet.png");
-    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 1);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
-    commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: texture_atlas_handle,
-            transform: Transform::from_translation(start_pos),
-            ..Default::default()
-        })
-        .insert(GameOnly)
-        .insert(Timer::from_seconds(0.250, true))
-        .insert(SimpleSpriteAnimation::new(4));
 }
 
 fn add_sharks(

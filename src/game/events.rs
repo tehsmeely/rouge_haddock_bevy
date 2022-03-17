@@ -18,6 +18,8 @@ pub enum PowerEvent {
 pub enum GameEvent {
     PhaseComplete(GamePhase),
     PlayerDied,
+    PlayerHooked,
+    EndOfLevel,
 }
 
 #[derive(Debug)]
