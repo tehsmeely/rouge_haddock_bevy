@@ -33,15 +33,23 @@ impl HookedAnimation {
 }
 
 pub fn hooked_animation_system(
-    mut query: Query<(Entity, &mut Transform, &mut HookedAnimation)>,
+    mut query: Query<(
+        Entity,
+        &mut Transform,
+        &mut HookedAnimation,
+        Option<&Player>,
+    )>,
     time: Res<Time>,
     mut commands: Commands,
+    mut game_event_writer: EventWriter<GameEvent>,
 ) {
-    for (entity, mut transform, mut hooked_animation) in query.iter_mut() {
+    for (entity, mut transform, mut hooked_animation, maybe_player) in query.iter_mut() {
         let finished = hooked_animation.tick(time.delta());
         if finished {
             commands.entity(entity).remove::<HookedAnimation>();
-            println!("Animation Finished?");
+            if maybe_player.is_some() {
+                game_event_writer.send(GameEvent::EndOfLevel);
+            }
         } else {
             let distance = {
                 let y = -1.0 * hooked_animation.speed * time.delta().as_secs_f32();
@@ -72,7 +80,7 @@ pub fn end_game_hook_system(
                 // Immediately triggering this might not factor in player movement since
                 // it's animated and the player arrives at TilePos after the component is set
                 // Maybe use some "InsertAfterDelay" component/system or handle elsewhere
-                let hooked_animation = HookedAnimation::new(10.0, -800.0);
+                let hooked_animation = HookedAnimation::new(1.0, -900.0);
                 commands
                     .entity(player_entity)
                     .remove::<MovementAnimate>()

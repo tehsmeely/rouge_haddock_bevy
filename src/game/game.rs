@@ -62,6 +62,7 @@ impl Plugin for GamePlugin {
                     .with_system(waggle_system)
                     .with_system(player_death_system)
                     .with_system(end_of_game_watcher_system)
+                    .with_system(end_of_level_event_system)
                     .with_system(super::end_game::end_game_hook_system)
                     .with_system(super::end_game::hooked_animation_system)
                     .with_system(super::projectile::projectile_watcher_system)
@@ -98,6 +99,20 @@ fn global_turn_counter_system(
                 info!("New Turn: {:?}", global_turn_counter);
             }
             GameEvent::PlayerDied | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
+        }
+    }
+}
+
+fn end_of_level_event_system(
+    mut state: ResMut<State<crate::State>>,
+    mut game_event_reader: EventReader<GameEvent>,
+) {
+    for event in game_event_reader.iter() {
+        match event {
+            GameEvent::EndOfLevel => {
+                state.set(crate::State::MainMenu).unwrap();
+            }
+            GameEvent::PlayerHooked | GameEvent::PlayerDied | GameEvent::PhaseComplete(_) => (),
         }
     }
 }
@@ -158,7 +173,8 @@ fn player_death_system(
             GameEvent::PhaseComplete(_) | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
             GameEvent::PlayerDied => {
                 info!("Player died");
-                game_state.set(crate::State::MainMenu);
+                //TODO: Handle player death properly
+                game_state.set(crate::State::MainMenu).unwrap();
             }
         }
     }
