@@ -141,5 +141,5 @@ pub fn spawn(
         .insert(Timer::from_seconds(0.250, true))
         .insert(EndGameHook)
         .insert(spawn_pos)
-        .insert(SimpleSpriteAnimation::new(4));
+        .insert(SimpleSpriteAnimation::new(0, 4));
 }

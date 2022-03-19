@@ -71,56 +71,77 @@ fn attack_decision(
 pub fn decide_move(
     current_pos: &TilePos,
     move_direction: &MapDirection,
+    max_move_distance: usize,
     attack_criteria: &AttackCriteria,
     move_query: Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
     mut map_query: &mut MapQuery,
     tile_type_query: &Query<&HasTileType>,
     additional_ignore_tilepos: &Vec<TilePos>,
 ) -> MoveDecision {
-    let destination_tilepos = current_pos.add(move_direction.to_pos_move());
-
-    let new_tile_entity = map_query
-        .get_tile_entity(destination_tilepos, 0, 0)
-        .unwrap();
-    let can_move = match tile_type_query.get(new_tile_entity) {
-        Ok(HasTileType(tt)) => tt.can_enter(),
-        Err(_) => false,
+    let destination_tilepos_list = {
+        let mut v = Vec::new();
+        let mut prev = current_pos;
+        for _ in 0..max_move_distance {
+            let new_pos = prev.add(move_direction.to_pos_move());
+            v.push(new_pos);
+            prev = v.last().unwrap()
+        }
+        v
     };
 
-    let can_move = can_move && !additional_ignore_tilepos.contains(&&destination_tilepos);
+    let mut decision = MoveDecision::Turn(move_direction.clone());
+    let mut stopped_early = false;
 
-    let mut decision = match can_move {
-        true => MoveDecision::Move((destination_tilepos.clone(), move_direction.clone())),
-        false => MoveDecision::Turn(move_direction.clone()),
-    };
+    for destination_tilepos in destination_tilepos_list.iter() {
+        if stopped_early {
+            break;
+        }
 
-    for (target_entity, tilepos, maybe_player, maybe_enemy) in move_query.iter() {
-        // Make decision
-        if tilepos.eq(&destination_tilepos) {
-            if maybe_player.is_some() {
-                if attack_criteria.can_attack_player {
-                    decision = attack_decision(
-                        attack_criteria,
-                        destination_tilepos,
-                        move_direction.clone(),
-                        target_entity,
-                    );
-                } else {
-                    decision = MoveDecision::Turn(move_direction.clone());
+        let new_tile_entity = map_query
+            .get_tile_entity(destination_tilepos.clone(), 0, 0)
+            .unwrap();
+        let can_move = match tile_type_query.get(new_tile_entity) {
+            Ok(HasTileType(tt)) => tt.can_enter(),
+            Err(_) => false,
+        };
+
+        let can_move = can_move && !additional_ignore_tilepos.contains(&&destination_tilepos);
+
+        if !can_move {
+            break;
+        } else {
+            decision = MoveDecision::Move((destination_tilepos.clone(), move_direction.clone()))
+        }
+
+        for (target_entity, tilepos, maybe_player, maybe_enemy) in move_query.iter() {
+            if tilepos.eq(&destination_tilepos) {
+                if maybe_player.is_some() {
+                    if attack_criteria.can_attack_player {
+                        decision = attack_decision(
+                            attack_criteria,
+                            destination_tilepos.clone(),
+                            move_direction.clone(),
+                            target_entity,
+                        );
+                    } else {
+                        decision = MoveDecision::Turn(move_direction.clone());
+                    }
+                    stopped_early = true;
+                    break;
+                } else if maybe_enemy.is_some() {
+                    if attack_criteria.can_attack_enemy {
+                        decision = attack_decision(
+                            attack_criteria,
+                            destination_tilepos.clone(),
+                            move_direction.clone(),
+                            target_entity,
+                        );
+                    } else {
+                        decision = MoveDecision::Turn(move_direction.clone());
+                    }
+                    stopped_early = true;
+                    break;
                 }
-                break;
-            } else if maybe_enemy.is_some() {
-                if attack_criteria.can_attack_enemy {
-                    decision = attack_decision(
-                        attack_criteria,
-                        destination_tilepos,
-                        move_direction.clone(),
-                        target_entity,
-                    );
-                } else {
-                    decision = MoveDecision::Turn(move_direction.clone());
-                }
-                break;
             }
         }
     }

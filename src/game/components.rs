@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::utils::Duration;
 use bevy_ecs_tilemap::{Tile, TilePos};
 use interpolation::Lerp;
+use rand::Rng;
 use std::collections::HashMap;
 
 #[derive(Debug, Component, Default)]
@@ -57,21 +58,29 @@ impl MapDirection {
         Self::ALL.choose(&mut rng).unwrap().clone()
     }
 
-    pub fn weighted_rand_choice(from_pos: &TilePos, target_pos: &TilePos) -> Self {
+    pub fn weighted_rand_choice(
+        from_pos: &TilePos,
+        target_pos: &TilePos,
+        external_weights: &MoveWeighting,
+    ) -> Self {
         let dx = target_pos.0 as isize - from_pos.0 as isize;
         let dy = target_pos.1 as isize - from_pos.1 as isize;
         let mut costs = HashMap::new();
         if dx.abs() > dy.abs() {
-            pick_left_right(dx, 4, 1, &mut costs);
-            pick_up_down(dy, 3, 2, &mut costs);
+            pick_left_right(dx, 4f32, 1f32, &mut costs);
+            pick_up_down(dy, 3f32, 2f32, &mut costs);
         } else {
-            pick_up_down(dy, 4, 1, &mut costs);
-            pick_left_right(dx, 3, 2, &mut costs);
+            pick_up_down(dy, 4f32, 1f32, &mut costs);
+            pick_left_right(dx, 3f32, 2f32, &mut costs);
         }
 
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
-        let weights = move |map_dir: &MapDirection| costs.get(map_dir).cloned().unwrap_or(0);
+        let weights = move |map_dir: &MapDirection| {
+            let pure_cost = costs.get(map_dir).cloned().unwrap_or(0f32);
+            let external_cost_modifier = external_weights.get(map_dir);
+            pure_cost * external_cost_modifier
+        };
         Self::ALL
             .choose_weighted(&mut rng, weights)
             .unwrap()
@@ -79,12 +88,7 @@ impl MapDirection {
     }
 }
 
-fn pick_up_down(
-    dy: isize,
-    high_cost: usize,
-    low_cost: usize,
-    costs: &mut HashMap<MapDirection, usize>,
-) {
+fn pick_up_down(dy: isize, high_cost: f32, low_cost: f32, costs: &mut HashMap<MapDirection, f32>) {
     if dy > 0 {
         costs.insert(MapDirection::Up, high_cost);
         costs.insert(MapDirection::Down, low_cost);
@@ -95,9 +99,9 @@ fn pick_up_down(
 }
 fn pick_left_right(
     dx: isize,
-    high_cost: usize,
-    low_cost: usize,
-    costs: &mut HashMap<MapDirection, usize>,
+    high_cost: f32,
+    low_cost: f32,
+    costs: &mut HashMap<MapDirection, f32>,
 ) {
     if dx > 0 {
         costs.insert(MapDirection::Right, high_cost);
@@ -117,18 +121,61 @@ impl Default for Facing {
     }
 }
 
+#[derive(Clone, Debug, Component)]
+pub struct DirectionDependentValue<T> {
+    left: T,
+    right: T,
+    up: T,
+    down: T,
+}
+
+impl<T> DirectionDependentValue<T>
+where
+    T: Copy,
+{
+    pub fn all(value: T) -> Self {
+        Self {
+            left: value,
+            right: value,
+            up: value,
+            down: value,
+        }
+    }
+
+    pub fn updown_leftright(updown: T, leftright: T) -> Self {
+        Self {
+            left: leftright,
+            right: leftright,
+            up: updown,
+            down: updown,
+        }
+    }
+
+    pub fn get(&self, direction: &MapDirection) -> T {
+        match direction {
+            MapDirection::Left => self.left,
+            MapDirection::Right => self.right,
+            MapDirection::Up => self.up,
+            MapDirection::Down => self.down,
+        }
+    }
+}
+
+pub type CanMoveDistance = DirectionDependentValue<usize>;
+pub type MoveWeighting = DirectionDependentValue<f32>;
+
 /// Struct for handling animated sprite frames from a spritesheet where all frames are used
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Default)]
 pub struct SimpleSpriteAnimation {
     pub frames: usize,
     pub frame_index: usize,
 }
 
 impl SimpleSpriteAnimation {
-    pub fn new(frames: usize) -> Self {
+    pub fn new(initial_frame: usize, frames: usize) -> Self {
         Self {
             frames,
-            frame_index: 0,
+            frame_index: initial_frame,
         }
     }
     pub fn incr(&mut self) {
@@ -164,10 +211,15 @@ impl DirectionalSpriteAnimation {
     // [5, 6, 7, 8], 9
     // [10, 11, 12, 13], 14
     // [15, 16, 17, 18], 19
-    pub fn new(regular_frames_per_direction: usize, special_frames_per_direction: usize) -> Self {
+    pub fn new(
+        regular_frames_per_direction: usize,
+        special_frames_per_direction: usize,
+        initial_frame: usize,
+    ) -> Self {
         Self {
             regular_frames_per_direction,
             special_frames_per_direction,
+            frame_index: initial_frame,
             ..Default::default()
         }
     }
@@ -412,6 +464,9 @@ impl TileResidentBundle {
         atlas_handle: Handle<TextureAtlas>,
         special_frames: usize,
     ) -> Self {
+        let mut rng = rand::thread_rng();
+        let frames_per_direction = 4;
+        let initial_frame = rng.gen_range(0..frames_per_direction);
         let start_pos = tile_pos.to_world_pos(10.0);
         Self {
             sprite_sheet_bundle: SpriteSheetBundle {
@@ -421,7 +476,51 @@ impl TileResidentBundle {
             },
             timer: Timer::from_seconds(0.1, true),
             facing: (Facing::default()),
-            directional_animation: DirectionalSpriteAnimation::new(4, special_frames),
+            directional_animation: DirectionalSpriteAnimation::new(
+                frames_per_direction,
+                special_frames,
+                initial_frame,
+            ),
+            tile_pos: (tile_pos),
+            movement_animate: (MovementAnimate::default()),
+            health: Health { hp: initial_hp },
+            game_only: GameOnly {},
+        }
+    }
+}
+
+#[derive(Bundle, Default)]
+pub struct SimpleTileResidentBundle {
+    #[bundle]
+    sprite_sheet_bundle: SpriteSheetBundle,
+    timer: Timer,
+    facing: Facing,
+    simple_animation: SimpleSpriteAnimation,
+    tile_pos: TilePos,
+    movement_animate: MovementAnimate,
+    health: Health,
+    game_only: GameOnly,
+}
+
+impl SimpleTileResidentBundle {
+    pub fn new(
+        initial_hp: usize,
+        tile_pos: TilePos,
+        atlas_handle: Handle<TextureAtlas>,
+        animation_frames: usize,
+    ) -> Self {
+        let mut rng = rand::thread_rng();
+        let initial_frame = rng.gen_range(0..animation_frames);
+        let start_pos = tile_pos.to_world_pos(10.0);
+        Self {
+            sprite_sheet_bundle: SpriteSheetBundle {
+                texture_atlas: atlas_handle.clone(),
+                transform: Transform::from_translation(start_pos),
+                ..Default::default()
+            },
+            timer: Timer::from_seconds(0.1, true),
+            facing: (Facing::default()),
+            simple_animation: SimpleSpriteAnimation::new(initial_frame, animation_frames),
             tile_pos: (tile_pos),
             movement_animate: (MovementAnimate::default()),
             health: Health { hp: initial_hp },

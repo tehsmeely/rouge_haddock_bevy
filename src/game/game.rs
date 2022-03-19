@@ -390,7 +390,7 @@ fn gamepad_input_handle_system(
 fn input_event_debug_system(mut input_events: EventReader<InputEvent>) {
     for event in input_events.iter() {
         let event: &InputEvent = event;
-        println!("Input Event: {:?}", event);
+        info!("Input Event: {:?}", event);
     }
 }
 
@@ -494,12 +494,11 @@ fn sfx_system(
         }
     }
 }
-
 fn enemy_system(
     mut game_event_writer: EventWriter<GameEvent>,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
-    enemy_query: Query<Entity, With<Enemy>>,
+    enemy_query: Query<(Entity, &CanMoveDistance, &MoveWeighting), With<Enemy>>,
     mut health_query: Query<&mut Health>,
     mut move_query: QuerySet<(
         QueryState<&TilePos, With<Player>>,
@@ -515,12 +514,14 @@ fn enemy_system(
         let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
         let mut moved_to = Vec::new();
-        for (entity) in enemy_query.iter() {
+        for (entity, can_move_distance, move_weights) in enemy_query.iter() {
             let current_pos = move_query.q1().get(entity).unwrap().clone();
-            let direction = MapDirection::weighted_rand_choice(&current_pos, &player_position);
+            let direction =
+                MapDirection::weighted_rand_choice(&current_pos, &player_position, move_weights);
             let decision = super::movement::decide_move(
                 &current_pos,
                 &direction,
+                can_move_distance.get(&direction),
                 &attack_criteria,
                 move_query.q2(),
                 &mut map_query,
@@ -585,6 +586,7 @@ fn player_movement_system(
                     let move_decision = super::movement::decide_move(
                         &current_pos,
                         &direction,
+                        1,
                         &AttackCriteria::for_player(),
                         move_query.q1(),
                         &mut map_query,
@@ -692,6 +694,8 @@ fn debug_print_input_system(
         QueryState<(&TilePos, &Transform), With<Player>>,
         QueryState<&TilePos, With<Enemy>>,
     )>,
+    mut player_health_q: Query<&mut Health, With<Player>>,
+    mut player_charges_q: Query<&mut PowerCharges, With<Player>>,
     input: Res<Input<KeyCode>>,
     mut cell_map: ResMut<CellMap<i32>>,
     mut commands: Commands,
@@ -727,7 +731,7 @@ fn debug_print_input_system(
             (*x as i32, *y as i32)
         };
         let recalculated_map = cell_map.recalculate(start_point);
-        add_sharks(
+        let _: Vec<(i32, i32)> = super::enemy::add_sharks(
             &mut commands,
             &mut asset_server,
             &mut texture_atlases,
@@ -736,6 +740,15 @@ fn debug_print_input_system(
             Some(&exclude_positions),
         );
         *cell_map = recalculated_map;
+    }
+
+    if input.just_pressed(KeyCode::Key6) {
+        let mut health = player_health_q.single_mut();
+        health.hp += 3;
+    }
+    if input.just_pressed(KeyCode::Key7) {
+        let mut charges = player_charges_q.single_mut();
+        charges.charges += 3;
     }
 }
 fn setup(
@@ -776,7 +789,7 @@ fn setup(
         })
         .insert(PowerCharges::new(3))
         .insert(Player);
-    add_sharks(
+    let shark_positions = super::enemy::add_sharks(
         &mut commands,
         &asset_server,
         &mut texture_atlases,
@@ -784,31 +797,13 @@ fn setup(
         &cell_map,
         None,
     );
+    super::enemy::add_crabs(
+        &mut commands,
+        &asset_server,
+        &mut texture_atlases,
+        3,
+        &cell_map,
+        Some(&shark_positions),
+    );
     commands.insert_resource(cell_map);
-}
-
-fn add_sharks(
-    commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
-    num_sharks: usize,
-    cell_map: &CellMap<i32>,
-    exclude_positions: Option<&Vec<(i32, i32)>>,
-) {
-    let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
-    let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
-    let atlas_handle = texture_atlases.add(atlas);
-    let spawn_positions = cell_map.distribute_points_by_cost(num_sharks, exclude_positions);
-    for (x, y) in spawn_positions.into_iter() {
-        let tile_pos = TilePos(x as u32, y as u32);
-        commands
-            .spawn_bundle(TileResidentBundle::new(
-                1,
-                tile_pos,
-                atlas_handle.clone(),
-                0,
-            ))
-            .insert(Enemy {})
-            .insert(Shark {});
-    }
 }

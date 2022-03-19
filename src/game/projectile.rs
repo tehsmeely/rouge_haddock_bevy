@@ -210,6 +210,6 @@ pub fn spawn_projectile(
         })
         .insert(Timer::from_seconds(0.1, true))
         .insert((Facing(direction)))
-        .insert(DirectionalSpriteAnimation::new(4, 0))
+        .insert(DirectionalSpriteAnimation::new(4, 0, 0))
         .insert(Projectile::new(end_point, 500., end_target_entity));
 }
