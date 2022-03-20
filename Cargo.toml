@@ -15,6 +15,7 @@ image = "0.24.0"
 winit = "0.26.1"
 array2d = "0.2.1"
 interpolation = "0.2.0"
+code_location = "1.1.0"
 
 [dependencies.bevy]
 # Sadly compiling with "Dynamic" casuses a msvc "fatal error LNK1189: library limit of 65535 objects exceeded"

@@ -10,7 +10,7 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        let state = crate::State::MainMenu;
+        let state = crate::CoreState::MainMenu;
         app.add_system_set(SystemSet::on_enter(state).with_system(menu_setup))
             .add_system_set(
                 SystemSet::on_update(state)
@@ -44,14 +44,14 @@ fn button_system(
 
 fn button_click_system(
     interaction_query: Query<(&Interaction, &MenuButton), (With<Button>, Changed<Interaction>)>,
-    mut app_state: ResMut<State<crate::State>>,
+    mut app_state: ResMut<State<crate::CoreState>>,
     mut app_exit_events: EventWriter<AppExit>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Clicked {
             match button {
                 MenuButton::Play => {
-                    app_state.set(crate::State::Game).unwrap();
+                    app_state.set(crate::CoreState::Game).unwrap();
                 }
                 MenuButton::Quit => app_exit_events.send(AppExit),
             }

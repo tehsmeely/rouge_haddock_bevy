@@ -15,7 +15,7 @@ mod map_gen;
 mod menu;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-enum State {
+enum CoreState {
     Loading,
     MainMenu,
     Game,
@@ -24,7 +24,7 @@ enum State {
 fn main() {
     let initial_state=
         // TODO: This is possibly wrong for debug purposes
-        State::Game;
+        CoreState::Game;
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(TilemapPlugin)

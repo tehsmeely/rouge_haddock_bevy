@@ -27,12 +27,13 @@ pub struct GameUiPlugin;
 
 impl Plugin for GameUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(crate::State::Game).with_system(ui_setup))
+        app.add_system_set(SystemSet::on_enter(crate::CoreState::Game).with_system(ui_setup))
             .add_system_set(
-                SystemSet::on_exit(crate::State::Game).with_system(recursive_cleanup::<GameUiOnly>),
+                SystemSet::on_exit(crate::CoreState::Game)
+                    .with_system(recursive_cleanup::<GameUiOnly>),
             )
             .add_system_set(
-                SystemSet::on_update(crate::State::Game)
+                SystemSet::on_update(crate::CoreState::Game)
                     .with_system(ui_player_health_system)
                     .with_system(ui_player_power_system)
                     .with_system(ui_turn_counter_system),

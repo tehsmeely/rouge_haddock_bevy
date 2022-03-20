@@ -3,6 +3,7 @@ use bevy::ecs::system::QuerySingleError;
 use bevy::prelude::*;
 use bevy::reflect::Map;
 use bevy_ecs_tilemap::{MapQuery, TilePos, TilemapPlugin};
+use code_location::code_location;
 use log::info;
 
 use crate::helpers::error_handling::ResultOkLog;
@@ -33,7 +34,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        let state = crate::State::Game;
+        let state = crate::CoreState::Game;
         app.add_system_set(SystemSet::on_enter(state).with_system(setup))
             .add_system_set(
                 SystemSet::on_update(state)
@@ -104,13 +105,13 @@ fn global_turn_counter_system(
 }
 
 fn end_of_level_event_system(
-    mut state: ResMut<State<crate::State>>,
+    mut state: ResMut<State<crate::CoreState>>,
     mut game_event_reader: EventReader<GameEvent>,
 ) {
     for event in game_event_reader.iter() {
         match event {
             GameEvent::EndOfLevel => {
-                state.set(crate::State::MainMenu).unwrap();
+                state.set(crate::CoreState::MainMenu).unwrap();
             }
             GameEvent::PlayerHooked | GameEvent::PlayerDied | GameEvent::PhaseComplete(_) => (),
         }
@@ -166,7 +167,7 @@ fn end_of_game_watcher_system(
 
 fn player_death_system(
     mut game_event_reader: EventReader<GameEvent>,
-    mut game_state: ResMut<State<crate::State>>,
+    mut game_state: ResMut<State<crate::CoreState>>,
 ) {
     for event in game_event_reader.iter() {
         match event {
@@ -174,7 +175,7 @@ fn player_death_system(
             GameEvent::PlayerDied => {
                 info!("Player died");
                 //TODO: Handle player death properly
-                game_state.set(crate::State::MainMenu).unwrap();
+                game_state.set(crate::CoreState::MainMenu).unwrap();
             }
         }
     }
@@ -260,17 +261,21 @@ fn camera_follow_system(
         QueryState<&mut Transform, With<GameCamera>>,
     )>,
 ) {
-    let mut pos = query.q0().get_single().ok_log().map(|(transform, follow)| {
-        (
-            transform.translation.x,
-            transform.translation.y,
-            follow.x_threshold,
-            follow.y_threshold,
-        )
-    });
+    let mut pos = query
+        .q0()
+        .get_single()
+        .ok_log(code_location!())
+        .map(|(transform, follow)| {
+            (
+                transform.translation.x,
+                transform.translation.y,
+                follow.x_threshold,
+                follow.y_threshold,
+            )
+        });
 
     if let Some((x, y, x_threshold, y_threshold)) = pos {
-        if let Some(mut camera_transform) = query.q1().get_single_mut().ok_log() {
+        if let Some(mut camera_transform) = query.q1().get_single_mut().ok_log(code_location!()) {
             if (x - camera_transform.translation.x).abs() > x_threshold {
                 camera_transform.translation.x = x
             }
@@ -307,7 +312,7 @@ fn mouse_click_system(
             // just undo the translation
             let pos = pos - size / 2.0;
 
-            if let Some(camera_transform) = camera_query.get_single().ok_log() {
+            if let Some(camera_transform) = camera_query.get_single().ok_log(code_location!()) {
                 // apply the camera transform
                 let world_position =
                     camera_transform.compute_matrix() * pos.extend(0.0).extend(1.0);
