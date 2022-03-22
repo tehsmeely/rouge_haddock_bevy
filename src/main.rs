@@ -9,6 +9,7 @@ use log::info;
 use simple_logger::SimpleLogger;
 use winit::window::Icon;
 
+mod asset_handling;
 mod game;
 mod helpers;
 mod map_gen;
@@ -24,13 +25,14 @@ enum CoreState {
 fn main() {
     let initial_state=
         // TODO: This is possibly wrong for debug purposes
-        CoreState::Game;
+        CoreState::Loading;
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(TilemapPlugin)
         .add_plugin(AudioPlugin)
         .add_plugin(crate::game::Plugin)
         .add_plugin(crate::menu::Plugin)
+        .add_plugin(crate::asset_handling::Plugin)
         .add_state(initial_state)
         .add_system(setup_window_title)
         .run();
