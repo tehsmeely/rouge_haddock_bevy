@@ -120,7 +120,7 @@ pub fn init_tilemap(
             print!("{:?}", (i, j));
             let pos = TilePos(i as u32, j as u32);
             layer_builder
-                .set_tile(pos.clone(), tile_type.to_raw_tile().into())
+                .set_tile(pos, tile_type.to_raw_tile().into())
                 .unwrap();
             let tile_entity = layer_builder.get_tile_entity(commands, pos).unwrap();
             commands.entity(tile_entity).insert(HasTileType(tile_type));

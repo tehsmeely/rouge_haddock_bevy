@@ -1,4 +1,4 @@
-use crate::game::components::{Facing, Health, MapDirection, MovementAnimate, Player, TileType};
+use crate::game::components::{Facing, Health, MapDirection, MovementAnimate, Player};
 use crate::game::enemy::Enemy;
 use crate::game::tilemap::{HasTileType, TilePosExt};
 use bevy::prelude::*;
@@ -19,7 +19,7 @@ impl MoveDecision {
         match self {
             Self::Nothing | Self::Turn(_) | Self::AttackAndDontMove(_) => None,
             Self::Move((tilepos, _)) | Self::AttackAndMaybeMove((tilepos, _, _)) => {
-                Some(tilepos.clone())
+                Some(*tilepos)
             }
         }
     }
@@ -61,10 +61,10 @@ fn attack_decision(
     match attack_criteria.move_on_attack {
         true => MoveDecision::AttackAndMaybeMove((
             destination_tilepos,
-            move_direction.clone(),
+            move_direction,
             target_entity,
         )),
-        false => MoveDecision::AttackAndDontMove((target_entity, move_direction.clone())),
+        false => MoveDecision::AttackAndDontMove((target_entity, move_direction)),
     }
 }
 
@@ -74,7 +74,7 @@ pub fn decide_move(
     max_move_distance: usize,
     attack_criteria: &AttackCriteria,
     move_query: Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
-    mut map_query: &mut MapQuery,
+    map_query: &mut MapQuery,
     tile_type_query: &Query<&HasTileType>,
     additional_ignore_tilepos: &Vec<TilePos>,
 ) -> MoveDecision {
@@ -98,28 +98,28 @@ pub fn decide_move(
         }
 
         let new_tile_entity = map_query
-            .get_tile_entity(destination_tilepos.clone(), 0, 0)
+            .get_tile_entity(*destination_tilepos, 0, 0)
             .unwrap();
         let can_move = match tile_type_query.get(new_tile_entity) {
             Ok(HasTileType(tt)) => tt.can_enter(),
             Err(_) => false,
         };
 
-        let can_move = can_move && !additional_ignore_tilepos.contains(&&destination_tilepos);
+        let can_move = can_move && !additional_ignore_tilepos.contains(destination_tilepos);
 
         if !can_move {
             break;
         } else {
-            decision = MoveDecision::Move((destination_tilepos.clone(), move_direction.clone()))
+            decision = MoveDecision::Move((*destination_tilepos, move_direction.clone()))
         }
 
         for (target_entity, tilepos, maybe_player, maybe_enemy) in move_query.iter() {
-            if tilepos.eq(&destination_tilepos) {
+            if tilepos.eq(destination_tilepos) {
                 if maybe_player.is_some() {
                     if attack_criteria.can_attack_player {
                         decision = attack_decision(
                             attack_criteria,
-                            destination_tilepos.clone(),
+                            *destination_tilepos,
                             move_direction.clone(),
                             target_entity,
                         );
@@ -132,7 +132,7 @@ pub fn decide_move(
                     if attack_criteria.can_attack_enemy {
                         decision = attack_decision(
                             attack_criteria,
-                            destination_tilepos.clone(),
+                            *destination_tilepos,
                             move_direction.clone(),
                             target_entity,
                         );
@@ -151,8 +151,8 @@ pub fn decide_move(
 pub fn apply_move_single(
     entity: Entity,
     move_decision: &MoveDecision,
-    mut move_query: &mut Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
-    mut health_query: &mut Query<&mut Health>,
+    move_query: &mut Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
+    health_query: &mut Query<&mut Health>,
 ) {
     let (maybe_tilepos, maybe_facing) = match move_decision {
         MoveDecision::Nothing => (None, None),
@@ -193,7 +193,7 @@ pub fn apply_move_single(
         {
             if let Some(new_tilepos) = maybe_tilepos {
                 move_animation.set(new_tilepos.to_world_pos(transform.translation.z));
-                *tilepos = new_tilepos.clone()
+                *tilepos = *new_tilepos
             }
             if let Some(new_facing) = maybe_facing {
                 facing.0 = new_facing.clone();

@@ -1,6 +1,6 @@
 use crate::game::components::{Health, Player, PowerCharges};
 use crate::game::turn::GlobalTurnCounter;
-use crate::game::ui::ui_components::turn_counter;
+
 use crate::helpers::cleanup::recursive_cleanup;
 use bevy::prelude::*;
 use log::info;
@@ -12,9 +12,9 @@ trait RectExt {
 impl RectExt for Rect<Val> {
     fn new_2(v_topbottom: Val, v_leftright: Val) -> Self {
         Rect {
-            left: v_leftright.clone(),
+            left: v_leftright,
             right: v_leftright,
-            top: v_topbottom.clone(),
+            top: v_topbottom,
             bottom: v_topbottom,
         }
     }
@@ -48,7 +48,7 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
-                size: Size::new(Val::Percent(100.0), banner_height.clone()),
+                size: Size::new(Val::Percent(100.0), banner_height),
                 margin: Rect::all(Val::Px(0.0)),
                 justify_content: JustifyContent::FlexStart,
                 flex_direction: FlexDirection::RowReverse,
@@ -123,7 +123,7 @@ mod ui_components {
         parent
             .spawn_bundle(NodeBundle {
                 style: Style {
-                    size: Size::new(Val::Px(100.0), banner_height.clone()),
+                    size: Size::new(Val::Px(100.0), *banner_height),
                     margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     flex_direction: FlexDirection::ColumnReverse,
@@ -167,7 +167,7 @@ mod ui_components {
         parent
             .spawn_bundle(NodeBundle {
                 style: Style {
-                    size: Size::new(Val::Px(200.0), banner_height.clone()),
+                    size: Size::new(Val::Px(200.0), *banner_height),
                     margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     flex_direction: FlexDirection::ColumnReverse,
@@ -207,7 +207,7 @@ mod ui_components {
         parent
             .spawn_bundle(NodeBundle {
                 style: Style {
-                    size: Size::new(Val::Px(200.0), banner_height.clone()),
+                    size: Size::new(Val::Px(200.0), *banner_height),
                     margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
                     justify_content: JustifyContent::FlexStart,
                     flex_direction: FlexDirection::Column,
@@ -221,7 +221,7 @@ mod ui_components {
                 parent
                     .spawn_bundle(NodeBundle {
                         style: Style {
-                            size: Size::new(Val::Px(150.0), banner_height.clone()),
+                            size: Size::new(Val::Px(150.0), *banner_height),
                             margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
                             justify_content: JustifyContent::Center,
                             flex_direction: FlexDirection::ColumnReverse,

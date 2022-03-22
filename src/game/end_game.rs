@@ -98,10 +98,10 @@ pub fn end_game_hook_system(
 }
 
 pub fn spawn(
-    mut meshes: &mut ResMut<Assets<Mesh>>,
-    mut materials: &mut ResMut<Assets<ColorMaterial>>,
-    mut commands: &mut Commands,
-    mut texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    commands: &mut Commands,
+    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
     asset_server: &Res<AssetServer>,
     spawn_pos: TilePos,
 ) {

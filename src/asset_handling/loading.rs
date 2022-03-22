@@ -24,7 +24,7 @@ fn load_all(asset_server: Res<AssetServer>, mut commands: Commands) {
     let mut image_handles: ImageAssetStore = HashMap::new();
     for asset in ImageAsset::iter() {
         let handle = asset_server.load(asset.to_filename());
-        image_handles.insert(asset.clone(), handle);
+        image_handles.insert(asset, handle);
     }
     commands.insert_resource(image_handles);
 }

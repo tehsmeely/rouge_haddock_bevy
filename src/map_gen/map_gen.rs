@@ -2,7 +2,7 @@ use super::cell_map::CellMap;
 use crate::game::components::TileType;
 use array2d::Array2D;
 use log::info;
-use num::range;
+
 use rand::prelude::SliceRandom;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Instant;
@@ -220,10 +220,8 @@ impl Grid {
         let reachable_cells: HashSet<(i32, i32)> = distance_map.keys().cloned().collect();
         for i in 0..self.grid_size.0 {
             for j in 0..self.grid_size.1 {
-                if self.grid[pos_as_usize((i, j))].get(&self.current) == &TileType::WATER {
-                    if !reachable_cells.contains(&(i, j)) {
-                        self.grid[pos_as_usize((i, j))].set(&self.current, TileType::WALL);
-                    }
+                if self.grid[pos_as_usize((i, j))].get(&self.current) == &TileType::WATER && !reachable_cells.contains(&(i, j)) {
+                    self.grid[pos_as_usize((i, j))].set(&self.current, TileType::WALL);
                 }
             }
         }
@@ -235,7 +233,7 @@ impl Grid {
 }
 
 fn to_half_signed(i: isize) -> isize {
-    let sign = if i % 2 == 0 { 1 } else { (-1) };
+    let sign = if i % 2 == 0 { 1 } else { -1 };
     (i / 2) * sign
 }
 

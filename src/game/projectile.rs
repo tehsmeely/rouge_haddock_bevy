@@ -10,7 +10,7 @@ use bevy::ecs::change_detection::ResMut;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::prelude::{Commands, Local, Query, Res, With};
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component, SpriteBundle, TextureAtlas};
+use bevy::prelude::{Component, TextureAtlas};
 use bevy::prelude::{SpriteSheetBundle, Transform};
 use bevy_ecs_tilemap::{MapQuery, TilePos};
 use log::debug;
@@ -45,7 +45,7 @@ impl Projectile {
 
 /// This system only progresses turn phase if all projectiles have ceased to exist
 pub fn projectile_watcher_system(
-    mut projectile_query: Query<Entity, With<Projectile>>,
+    projectile_query: Query<Entity, With<Projectile>>,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
     mut game_event_writer: EventWriter<GameEvent>,
@@ -75,9 +75,9 @@ pub fn projectile_system(
     time: Res<Time>,
     mut commands: Commands,
 ) {
-    for (entity, mut transform, mut projectile) in query.iter_mut() {
+    for (entity, mut transform, projectile) in query.iter_mut() {
         let target_pos = projectile.end_point.to_world_pos(1f32).truncate();
-        let distance_to_travel = (Vec2::from(target_pos) - transform.translation.truncate());
+        let distance_to_travel = target_pos - transform.translation.truncate();
         let direction: Vec2 = distance_to_travel.normalize();
 
         let distance_this_step = direction * projectile.speed * time.delta().as_secs_f32();
@@ -99,8 +99,8 @@ pub fn projectile_system(
 }
 
 // TODO: Move me
-fn get_tiletype(t: &TilePos, q: &Query<&HasTileType>, mut map_query: &mut MapQuery) -> TileType {
-    let tile_entity = map_query.get_tile_entity(t.clone(), 0, 0);
+fn get_tiletype(t: &TilePos, q: &Query<&HasTileType>, map_query: &mut MapQuery) -> TileType {
+    let tile_entity = map_query.get_tile_entity(*t, 0, 0);
     match tile_entity {
         Ok(entity) => {
             let type_ = q.get(entity);
@@ -121,8 +121,8 @@ pub enum ProjectileFate {
 impl ProjectileFate {
     pub fn tile_pos(&self) -> &TilePos {
         match self {
-            Self::EndNoTarget(tp) => &tp,
-            Self::EndHitTarget((tp, _entity)) => &tp,
+            Self::EndNoTarget(tp) => tp,
+            Self::EndHitTarget((tp, _entity)) => tp,
         }
     }
     pub fn entity(&self) -> Option<Entity> {
@@ -137,20 +137,20 @@ pub fn scan_to_endpoint<T: Component>(
     from: &TilePos,
     direction: &MapDirection,
     query: &Query<(Entity, &TilePos), With<T>>,
-    mut map_query: &mut MapQuery,
+    map_query: &mut MapQuery,
     tiletype_query: &Query<&HasTileType>,
 ) -> ProjectileFate {
     let enemies_on_same_row_or_column: HashMap<TilePos, Entity> = {
         let mut enemies = HashMap::with_capacity(5);
         for (entity, tilepos) in query.iter() {
             if tilepos.0 == from.0 || tilepos.1 == from.1 {
-                enemies.insert(tilepos.clone(), entity);
+                enemies.insert(*tilepos, entity);
             }
         }
         enemies
     };
     let step = direction.to_unit_translation().truncate();
-    let mut test_pos = from.clone();
+    let mut test_pos = *from;
     let mut i = 0;
     println!(
         "Calculating projectile from: {:?} in direction {:?}",
@@ -163,7 +163,7 @@ pub fn scan_to_endpoint<T: Component>(
         }
         tilepos_add_vec(&mut test_pos, &step);
         println!("Testing pos: {:?}", test_pos);
-        let tile_type = get_tiletype(&test_pos, &tiletype_query, &mut map_query);
+        let tile_type = get_tiletype(&test_pos, tiletype_query, map_query);
         if tile_type.can_enter() {
             match enemies_on_same_row_or_column.get(&test_pos) {
                 Some(entity) => return ProjectileFate::EndHitTarget((test_pos, *entity)),
@@ -190,9 +190,9 @@ fn tilepos_add_vec(tilepos: &mut TilePos, vec: &Vec2) {
 }
 
 pub fn spawn_projectile(
-    mut commands: &mut Commands,
+    commands: &mut Commands,
     asset_server: &Res<AssetServer>,
-    mut texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
     direction: MapDirection,
     start_pos: Vec3,
     end_point: TilePos,
@@ -204,12 +204,12 @@ pub fn spawn_projectile(
     let atlas_handle = texture_atlases.add(atlas);
     commands
         .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: atlas_handle.clone(),
+            texture_atlas: atlas_handle,
             transform: Transform::from_translation(start_pos),
             ..Default::default()
         })
         .insert(Timer::from_seconds(0.1, true))
-        .insert((Facing(direction)))
+        .insert(Facing(direction))
         .insert(DirectionalSpriteAnimation::new(4, 0, 0))
         .insert(Projectile::new(end_point, 500., end_target_entity));
 }

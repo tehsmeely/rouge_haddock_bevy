@@ -355,7 +355,7 @@ impl Waggle {
                 self.count -= 1;
             }
         } else {
-            ()
+            
         }
     }
     pub fn finished(&self) -> bool {
@@ -470,7 +470,7 @@ impl TileResidentBundle {
         let start_pos = tile_pos.to_world_pos(10.0);
         Self {
             sprite_sheet_bundle: SpriteSheetBundle {
-                texture_atlas: atlas_handle.clone(),
+                texture_atlas: atlas_handle,
                 transform: Transform::from_translation(start_pos),
                 ..Default::default()
             },
@@ -514,7 +514,7 @@ impl SimpleTileResidentBundle {
         let start_pos = tile_pos.to_world_pos(10.0);
         Self {
             sprite_sheet_bundle: SpriteSheetBundle {
-                texture_atlas: atlas_handle.clone(),
+                texture_atlas: atlas_handle,
                 transform: Transform::from_translation(start_pos),
                 ..Default::default()
             },

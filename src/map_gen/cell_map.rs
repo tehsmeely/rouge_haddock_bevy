@@ -1,6 +1,6 @@
 use rand::prelude::SliceRandom;
 use std::collections::{HashMap, VecDeque};
-use std::hash::Hash;
+
 
 #[derive(Debug)]
 pub struct CellMap<V>(pub HashMap<(i32, i32), V>);
@@ -59,7 +59,7 @@ where
         let min_val = self.0.values().min()?;
         for (key, v) in self.0.iter() {
             if v == min_val {
-                return Some(key.clone());
+                return Some(*key);
             }
         }
         None
@@ -68,7 +68,7 @@ where
         let max_val = self.0.values().max()?;
         for (key, v) in self.0.iter() {
             if v == max_val {
-                return Some(key.clone());
+                return Some(*key);
             }
         }
         None
@@ -129,7 +129,7 @@ impl CellMap<i32> {
                     true
                 };
                 if *v > min_cost && *v < max_cost && not_excluded {
-                    Some(k.clone())
+                    Some(*k)
                 } else {
                     None
                 }

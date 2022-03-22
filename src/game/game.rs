@@ -1,8 +1,8 @@
-use bevy::ecs::schedule::{IntoRunCriteria, RunCriteriaDescriptorOrLabel};
-use bevy::ecs::system::QuerySingleError;
+
+
 use bevy::prelude::*;
 use bevy::reflect::Map;
-use bevy_ecs_tilemap::{MapQuery, TilePos, TilemapPlugin};
+use bevy_ecs_tilemap::{MapQuery, TilePos};
 use code_location::code_location;
 use log::info;
 
@@ -10,7 +10,7 @@ use crate::helpers::error_handling::ResultOkLog;
 
 use super::{
     components::*,
-    enemy::{Enemy, Shark},
+    enemy::{Enemy},
     events::{GameEvent, InputEvent},
     tilemap::{HasTileType, TilePosExt},
     timed_removal::{TimedRemoval, TimedRemovalPlugin},
@@ -18,16 +18,16 @@ use super::{
 };
 use crate::game::events::{InfoEvent, PowerEvent};
 use crate::game::movement::{AttackCriteria, MoveDecisions};
-use crate::game::projectile::{spawn_projectile, ProjectileFate};
+
 use crate::game::ui::GameUiPlugin;
 use crate::helpers::cleanup::recursive_cleanup;
 use crate::map_gen::cell_map::CellMap;
-use bevy::input::gamepad::{gamepad_connection_system, gamepad_event_system};
-use bevy::sprite::MaterialMesh2dBundle;
+
+
 use bevy_kira_audio::Audio;
-use std::cell::Cell;
-use std::io::Chain;
-use std::marker::PhantomData;
+
+
+
 use std::time::Duration;
 
 pub struct GamePlugin;
@@ -96,7 +96,7 @@ fn global_turn_counter_system(
     for event in game_event_reader.iter() {
         match event {
             GameEvent::PhaseComplete(phase) => {
-                global_turn_counter.step(&phase);
+                global_turn_counter.step(phase);
                 info!("New Turn: {:?}", global_turn_counter);
             }
             GameEvent::PlayerDied | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
@@ -261,7 +261,7 @@ fn camera_follow_system(
         QueryState<&mut Transform, With<GameCamera>>,
     )>,
 ) {
-    let mut pos = query
+    let pos = query
         .q0()
         .get_single()
         .ok_log(code_location!())
@@ -361,7 +361,7 @@ fn input_handle_system(input: Res<Input<KeyCode>>, mut input_events: EventWriter
 
     if input.just_pressed(KeyCode::Q) {
         input_events.send(InputEvent::Power);
-        return;
+        
     }
 }
 
@@ -504,7 +504,7 @@ fn enemy_system(
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
     enemy_query: Query<(Entity, &CanMoveDistance, &MoveWeighting), With<Enemy>>,
-    mut health_query: Query<&mut Health>,
+    health_query: Query<&mut Health>,
     mut move_query: QuerySet<(
         QueryState<&TilePos, With<Player>>,
         QueryState<&TilePos, With<Enemy>>,
@@ -514,13 +514,13 @@ fn enemy_system(
     mut map_query: MapQuery,
     tile_type_query: Query<&HasTileType>,
 ) {
-    let player_position = move_query.q0().get_single().unwrap().clone();
+    let player_position = *move_query.q0().get_single().unwrap();
     if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
         let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
         let mut moved_to = Vec::new();
         for (entity, can_move_distance, move_weights) in enemy_query.iter() {
-            let current_pos = move_query.q1().get(entity).unwrap().clone();
+            let current_pos = *move_query.q1().get(entity).unwrap();
             let direction =
                 MapDirection::weighted_rand_choice(&current_pos, &player_position, move_weights);
             let decision = super::movement::decide_move(
@@ -558,7 +558,7 @@ fn player_movement_watcher(
             }
             _ => (),
         }
-        *known_player_position = Some(player_tilepos.clone());
+        *known_player_position = Some(*player_tilepos);
     }
 }
 
@@ -573,8 +573,8 @@ fn player_movement_system(
         QueryState<&mut Facing, With<Player>>,
     )>,
     mut power_query: Query<&mut PowerCharges, With<Player>>,
-    mut health_query: Query<(&mut Health)>,
-    tile_type_query: Query<(&HasTileType)>,
+    mut health_query: Query<&mut Health>,
+    tile_type_query: Query<&HasTileType>,
     mut map_query: MapQuery,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
@@ -586,11 +586,11 @@ fn player_movement_system(
                     .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
                     let (player_entity, current_pos) = move_query.q0().get_single().unwrap();
-                    let current_pos = current_pos.clone();
+                    let current_pos = *current_pos;
 
                     let move_decision = super::movement::decide_move(
                         &current_pos,
-                        &direction,
+                        direction,
                         1,
                         &AttackCriteria::for_player(),
                         move_query.q1(),
@@ -664,8 +664,8 @@ fn player_power_system(
                 let (start_pos, tilepos, direction): (Vec3, TilePos, MapDirection) = {
                     let (transform, tilepos, facing) = query.q0().single();
                     (
-                        (*transform).translation.clone(),
-                        tilepos.clone(),
+                        (*transform).translation,
+                        *tilepos,
                         facing.0.clone(),
                     )
                 };
@@ -676,7 +676,7 @@ fn player_power_system(
                     &mut map_query,
                     &tile_type_query,
                 );
-                let end_point = fate.tile_pos().clone();
+                let end_point = *fate.tile_pos();
                 let end_target_entity = fate.entity();
                 super::projectile::spawn_projectile(
                     &mut commands,
@@ -732,7 +732,7 @@ fn debug_print_input_system(
             .map(|tilepos: &TilePos| tilepos.as_i32s())
             .collect::<Vec<(i32, i32)>>();
         let start_point = {
-            let (TilePos(x, y), trans) = query.q2().single();
+            let (TilePos(x, y), _trans) = query.q2().single();
             (*x as i32, *y as i32)
         };
         let recalculated_map = cell_map.recalculate(start_point);
