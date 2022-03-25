@@ -3,7 +3,14 @@ name = "rouge_haddock_bevy"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "rouge_haddock_bevy_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rouge_haddock_bevy"
+path = "src/main.rs"
+
 
 [dependencies]
 bevy_ecs_tilemap = "0.5.0"
