@@ -10,6 +10,16 @@ pub enum ImageAsset {
     SharkSpritesheet,
     CrabSpritesheet,
     ProjectileSpritesheet,
+    TileMapSpritesheet,
+}
+
+impl ImageAsset {
+    pub fn is_for_tilemap(&self) -> bool {
+        match self {
+            Self::TileMapSpritesheet => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(EnumIter, PartialEq, Eq, Hash, Debug, Clone, Copy)]
@@ -22,6 +32,7 @@ impl AssetClass for ImageAsset {
             Self::SharkSpritesheet => "sprites/shark_spritesheet.png",
             Self::CrabSpritesheet => "sprites/crab_spritesheet.png",
             Self::ProjectileSpritesheet => "sprites/projectile_spritesheet.png",
+            Self::TileMapSpritesheet => "sprites/tilemap_spritesheet.png",
         }
     }
 }

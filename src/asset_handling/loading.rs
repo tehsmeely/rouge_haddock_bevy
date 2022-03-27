@@ -2,12 +2,19 @@ use super::asset::{AssetClass, ImageAsset};
 use crate::CoreState;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
+use bevy::render::render_resource::TextureUsages;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 pub struct LoadingPlugin;
 
-pub type ImageAssetStore = HashMap<ImageAsset, Handle<Image>>;
+pub struct ImageAssetStore(HashMap<ImageAsset, Handle<Image>>);
+
+impl ImageAssetStore {
+    pub fn get(&self, key: &ImageAsset) -> Handle<Image> {
+        self.0.get(key).unwrap().clone()
+    }
+}
 
 struct LoadingPrintTimer(Timer);
 
@@ -16,17 +23,18 @@ impl Plugin for LoadingPlugin {
         let state = CoreState::Loading;
         app.insert_resource(LoadingPrintTimer(Timer::from_seconds(1.0, true)))
             .add_system_set(SystemSet::on_enter(state).with_system(load_all))
-            .add_system_set(SystemSet::on_update(state).with_system(loading_watcher));
+            .add_system_set(SystemSet::on_update(state).with_system(loading_watcher))
+            .add_system_set(SystemSet::on_exit(state).with_system(finalise));
     }
 }
 
 fn load_all(asset_server: Res<AssetServer>, mut commands: Commands) {
-    let mut image_handles: ImageAssetStore = HashMap::new();
+    let mut image_handles = HashMap::new();
     for asset in ImageAsset::iter() {
         let handle = asset_server.load(asset.to_filename());
         image_handles.insert(asset, handle);
     }
-    commands.insert_resource(image_handles);
+    commands.insert_resource(ImageAssetStore(image_handles));
 }
 
 fn loading_watcher(
@@ -37,7 +45,7 @@ fn loading_watcher(
     time: Res<Time>,
 ) {
     let mut count = LoadStateCount::default();
-    for handle in image_handles.values() {
+    for handle in image_handles.0.values() {
         let load_state = asset_server.get_load_state(handle);
         count.incr(&load_state);
     }
@@ -49,6 +57,20 @@ fn loading_watcher(
     if count.all_finished() {
         info!("Finished Loading: {:?}", count);
         state.set(CoreState::MainMenu).unwrap();
+    }
+}
+
+fn finalise(mut textures: ResMut<Assets<Image>>, image_handles: Res<ImageAssetStore>) {
+    for (image_asset, image_handle) in image_handles.0.iter() {
+        if image_asset.is_for_tilemap() {
+            if let Some(mut texture) = textures.get_mut(image_handle) {
+                texture.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING
+                    | TextureUsages::COPY_SRC
+                    | TextureUsages::COPY_DST;
+            } else {
+                warn!("Did not get image from images, but thought we were all loaded!");
+            }
+        }
     }
 }
 

@@ -1,3 +1,3 @@
 fn main() {
-    rouge_haddock_bevy::main();
+    rouge_haddock_bevy_lib::main();
 }

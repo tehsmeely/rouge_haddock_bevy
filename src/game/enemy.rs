@@ -1,3 +1,5 @@
+use crate::asset_handling::asset::ImageAsset;
+use crate::asset_handling::ImageAssetStore;
 use crate::game::components::{
     CanMoveDistance, MoveWeighting, SimpleTileResidentBundle, TileResidentBundle,
 };
@@ -16,13 +18,14 @@ pub struct Crab;
 
 pub fn add_sharks(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    image_assets: &Res<ImageAssetStore>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
     num_sharks: usize,
     cell_map: &CellMap<i32>,
     exclude_positions: Option<&Vec<(i32, i32)>>,
 ) -> Vec<(i32, i32)> {
-    let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
+    //let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
+    let texture_handle = image_assets.get(&ImageAsset::SharkSpritesheet);
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
     let spawn_positions = cell_map.distribute_points_by_cost(num_sharks, exclude_positions);
@@ -45,13 +48,14 @@ pub fn add_sharks(
 
 pub fn add_crabs(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    image_assets: &Res<ImageAssetStore>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
     num_crabs: usize,
     cell_map: &CellMap<i32>,
     exclude_positions: Option<&Vec<(i32, i32)>>,
 ) {
-    let texture_handle = asset_server.load("sprites/crab_spritesheet.png");
+    //let texture_handle = asset_server.load("sprites/crab_spritesheet.png");
+    let texture_handle = image_assets.get(&ImageAsset::CrabSpritesheet);
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 1);
     let atlas_handle = texture_atlases.add(atlas);
     let spawn_positions = cell_map.distribute_points_by_cost(num_crabs, exclude_positions);

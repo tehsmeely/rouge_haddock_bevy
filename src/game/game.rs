@@ -1,5 +1,3 @@
-
-
 use bevy::prelude::*;
 use bevy::reflect::Map;
 use bevy_ecs_tilemap::{MapQuery, TilePos};
@@ -10,7 +8,7 @@ use crate::helpers::error_handling::ResultOkLog;
 
 use super::{
     components::*,
-    enemy::{Enemy},
+    enemy::Enemy,
     events::{GameEvent, InputEvent},
     tilemap::{HasTileType, TilePosExt},
     timed_removal::{TimedRemoval, TimedRemovalPlugin},
@@ -23,11 +21,10 @@ use crate::game::ui::GameUiPlugin;
 use crate::helpers::cleanup::recursive_cleanup;
 use crate::map_gen::cell_map::CellMap;
 
-
 use bevy_kira_audio::Audio;
 
-
-
+use crate::asset_handling::asset::ImageAsset;
+use crate::asset_handling::ImageAssetStore;
 use std::time::Duration;
 
 pub struct GamePlugin;
@@ -76,10 +73,10 @@ impl Plugin for GamePlugin {
             )
             .add_plugin(TimedRemovalPlugin)
             .add_plugin(GameUiPlugin)
-            .add_system(
+            /* .add_system(
                 // TODO: when pre-loading is implemented we can do away with this (i think)
                 crate::helpers::texture::set_texture_filters_to_nearest,
-            )
+            )*/
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
@@ -361,7 +358,6 @@ fn input_handle_system(input: Res<Input<KeyCode>>, mut input_events: EventWriter
 
     if input.just_pressed(KeyCode::Q) {
         input_events.send(InputEvent::Power);
-        
     }
 }
 
@@ -663,11 +659,7 @@ fn player_power_system(
             PowerEvent::PowerFired => {
                 let (start_pos, tilepos, direction): (Vec3, TilePos, MapDirection) = {
                     let (transform, tilepos, facing) = query.q0().single();
-                    (
-                        (*transform).translation,
-                        *tilepos,
-                        facing.0.clone(),
-                    )
+                    ((*transform).translation, *tilepos, facing.0.clone())
                 };
                 let fate = super::projectile::scan_to_endpoint(
                     &tilepos,
@@ -707,6 +699,7 @@ fn debug_print_input_system(
     mut asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut info_event_writer: EventWriter<InfoEvent>,
+    image_assets: Res<ImageAssetStore>,
 ) {
     if input.just_pressed(KeyCode::P) {
         for (trans, global_trans) in query.q0().iter() {
@@ -738,7 +731,7 @@ fn debug_print_input_system(
         let recalculated_map = cell_map.recalculate(start_point);
         let _: Vec<(i32, i32)> = super::enemy::add_sharks(
             &mut commands,
-            &mut asset_server,
+            &image_assets,
             &mut texture_atlases,
             4,
             &recalculated_map,
@@ -759,6 +752,7 @@ fn debug_print_input_system(
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    image_assets: Res<ImageAssetStore>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     map_query: MapQuery,
 ) {
@@ -770,7 +764,7 @@ fn setup(
     println!("Final CellMap: {:?}", cell_map);
     super::tilemap::init_tilemap(
         &mut commands,
-        &asset_server,
+        &image_assets,
         map_query,
         &cell_map,
         border_size,
@@ -779,7 +773,8 @@ fn setup(
         .spawn_bundle(OrthographicCameraBundle::new_2d())
         .insert(GameOnly)
         .insert(GameCamera);
-    let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
+    //let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
+    let texture_handle = image_assets.get(&ImageAsset::HaddockSpritesheet);
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 5, 4);
     let atlas_handle = texture_atlases.add(atlas);
     let start_point = {
@@ -796,7 +791,7 @@ fn setup(
         .insert(Player);
     let shark_positions = super::enemy::add_sharks(
         &mut commands,
-        &asset_server,
+        &image_assets,
         &mut texture_atlases,
         7,
         &cell_map,
@@ -804,7 +799,7 @@ fn setup(
     );
     super::enemy::add_crabs(
         &mut commands,
-        &asset_server,
+        &image_assets,
         &mut texture_atlases,
         3,
         &cell_map,

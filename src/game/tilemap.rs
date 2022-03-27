@@ -2,8 +2,11 @@ use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use num::Integer;
 
+use crate::asset_handling::asset::ImageAsset;
+use crate::asset_handling::ImageAssetStore;
 use crate::game::components::TileType;
 use crate::map_gen::cell_map::CellMap;
+use bevy::utils::HashMap;
 
 pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;
@@ -72,12 +75,13 @@ pub fn cleanup(mut commands: Commands, mut map_query: MapQuery) {
 
 pub fn init_tilemap(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    image_assets: &Res<ImageAssetStore>,
     mut map_query: MapQuery,
     cell_map: &CellMap<i32>,
     border_size: usize,
 ) {
-    let texture_handle = asset_server.load("sprites/tilemap_spritesheet.png");
+    //let texture_handle = asset_server.load("sprites/tilemap_spritesheet.png");
+    let texture_handle = image_assets.get(&ImageAsset::TileMapSpritesheet);
 
     // Create map entity and component:
     let map_entity = commands.spawn().id();
@@ -116,8 +120,6 @@ pub fn init_tilemap(
                 true => TileType::WATER,
                 false => TileType::WALL,
             };
-            //print!("{}", tile_type.to_str());
-            print!("{:?}", (i, j));
             let pos = TilePos(i as u32, j as u32);
             layer_builder
                 .set_tile(pos, tile_type.to_raw_tile().into())

@@ -6,10 +6,18 @@ use bevy_ecs_tilemap::{MapQuery, TilePos};
 use std::collections::HashMap;
 
 #[derive(Debug)]
+struct AttackAndMaybeMove {
+    attack_target_pos: TilePos,
+    attack_target_entity: Entity,
+    direction: MapDirection,
+    position_before_enemy: Option<TilePos>,
+}
+
+#[derive(Debug)]
 pub enum MoveDecision {
     Move((TilePos, MapDirection)),
     Nothing,
-    AttackAndMaybeMove((TilePos, MapDirection, Entity)),
+    AttackAndMaybeMove(AttackAndMaybeMove),
     AttackAndDontMove((Entity, MapDirection)),
     Turn(MapDirection),
 }
@@ -18,9 +26,11 @@ impl MoveDecision {
     pub fn to_move_position(&self) -> Option<TilePos> {
         match self {
             Self::Nothing | Self::Turn(_) | Self::AttackAndDontMove(_) => None,
-            Self::Move((tilepos, _)) | Self::AttackAndMaybeMove((tilepos, _, _)) => {
-                Some(*tilepos)
-            }
+            Self::Move((tilepos, _))
+            | Self::AttackAndMaybeMove(AttackAndMaybeMove {
+                attack_target_pos: tilepos,
+                ..
+            }) => Some(*tilepos),
         }
     }
 }
@@ -55,16 +65,18 @@ impl AttackCriteria {
 fn attack_decision(
     attack_criteria: &AttackCriteria,
     destination_tilepos: TilePos,
+    previous_tilepos: &Option<&TilePos>,
     move_direction: MapDirection,
     target_entity: Entity,
 ) -> MoveDecision {
-    match attack_criteria.move_on_attack {
-        true => MoveDecision::AttackAndMaybeMove((
-            destination_tilepos,
-            move_direction,
-            target_entity,
-        )),
-        false => MoveDecision::AttackAndDontMove((target_entity, move_direction)),
+    match (attack_criteria.move_on_attack, previous_tilepos) {
+        (true, _) | (false, Some(_)) => MoveDecision::AttackAndMaybeMove(AttackAndMaybeMove {
+            attack_target_pos: destination_tilepos,
+            attack_target_entity: target_entity,
+            direction: move_direction,
+            position_before_enemy: previous_tilepos.to_owned().cloned(),
+        }),
+        (false, None) => MoveDecision::AttackAndDontMove((target_entity, move_direction)),
     }
 }
 
@@ -91,6 +103,10 @@ pub fn decide_move(
 
     let mut decision = MoveDecision::Turn(move_direction.clone());
     let mut stopped_early = false;
+
+    // This target is used for an enemy hitting but not killing when moving >1 square
+    // - they should still move next to where they attacked
+    let mut previous_move_target = None;
 
     for destination_tilepos in destination_tilepos_list.iter() {
         if stopped_early {
@@ -120,6 +136,7 @@ pub fn decide_move(
                         decision = attack_decision(
                             attack_criteria,
                             *destination_tilepos,
+                            &previous_move_target,
                             move_direction.clone(),
                             target_entity,
                         );
@@ -133,6 +150,7 @@ pub fn decide_move(
                         decision = attack_decision(
                             attack_criteria,
                             *destination_tilepos,
+                            &previous_move_target,
                             move_direction.clone(),
                             target_entity,
                         );
@@ -144,6 +162,8 @@ pub fn decide_move(
                 }
             }
         }
+
+        previous_move_target = Some(destination_tilepos)
     }
     decision
 }
@@ -168,13 +188,20 @@ pub fn apply_move_single(
             }
             (None, Some(facing))
         }
-        MoveDecision::AttackAndMaybeMove((move_to, facing, target)) => {
-            let target_health = health_query.get_mut(*target);
+        MoveDecision::AttackAndMaybeMove(AttackAndMaybeMove {
+            attack_target_pos,
+            attack_target_entity,
+            direction,
+            position_before_enemy,
+        }) => {
+            let target_health = health_query.get_mut(*attack_target_entity);
             let result_tilepos = match target_health {
                 Ok(mut health) => {
                     health.decr_by(1);
                     if health.hp == 0 {
-                        Some(move_to)
+                        Some(attack_target_pos)
+                    } else if let Some(previous_tilepos) = position_before_enemy {
+                        Some(previous_tilepos)
                     } else {
                         None
                     }
@@ -184,7 +211,7 @@ pub fn apply_move_single(
                     None
                 }
             };
-            (result_tilepos, Some(facing))
+            (result_tilepos, Some(direction))
         }
     };
     if maybe_tilepos.is_some() || maybe_facing.is_some() {
