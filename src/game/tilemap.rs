@@ -6,7 +6,6 @@ use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::game::components::TileType;
 use crate::map_gen::cell_map::CellMap;
-use bevy::utils::HashMap;
 
 pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;

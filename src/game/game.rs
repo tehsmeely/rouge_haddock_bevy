@@ -648,7 +648,7 @@ fn player_power_system(
         QueryState<(Entity, &TilePos), With<Enemy>>,
     )>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    image_assets: Res<ImageAssetStore>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut power_event_reader: EventReader<PowerEvent>,
     mut map_query: MapQuery,
@@ -672,7 +672,7 @@ fn player_power_system(
                 let end_target_entity = fate.entity();
                 super::projectile::spawn_projectile(
                     &mut commands,
-                    &asset_server,
+                    &image_assets,
                     &mut texture_atlases,
                     direction,
                     start_pos,
@@ -751,7 +751,6 @@ fn debug_print_input_system(
 }
 fn setup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     image_assets: Res<ImageAssetStore>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     map_query: MapQuery,

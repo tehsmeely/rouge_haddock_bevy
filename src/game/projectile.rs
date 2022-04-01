@@ -1,4 +1,6 @@
 use super::tilemap::TilePosExt;
+use crate::asset_handling::asset::ImageAsset;
+use crate::asset_handling::ImageAssetStore;
 use crate::game::components::{DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType};
 use crate::game::events::GameEvent;
 use crate::game::tilemap::HasTileType;
@@ -191,7 +193,7 @@ fn tilepos_add_vec(tilepos: &mut TilePos, vec: &Vec2) {
 
 pub fn spawn_projectile(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    image_assets: &Res<ImageAssetStore>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
     direction: MapDirection,
     start_pos: Vec3,
@@ -199,7 +201,8 @@ pub fn spawn_projectile(
     end_target_entity: Option<Entity>,
 ) {
     // TODO: Split out texture loading from spawning
-    let texture_handle = asset_server.load("sprites/projectile_spritesheet.png");
+    //let texture_handle = asset_server.load("sprites/projectile_spritesheet.png");
+    let texture_handle = image_assets.get(&ImageAsset::ProjectileSpritesheet);
     let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(20.0, 20.0), 4, 4);
     let atlas_handle = texture_atlases.add(atlas);
     commands
