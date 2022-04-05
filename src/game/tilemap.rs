@@ -79,7 +79,6 @@ pub fn init_tilemap(
     cell_map: &CellMap<i32>,
     border_size: usize,
 ) {
-    //let texture_handle = asset_server.load("sprites/tilemap_spritesheet.png");
     let texture_handle = image_assets.get(&ImageAsset::TileMapSpritesheet);
 
     // Create map entity and component:
@@ -87,7 +86,6 @@ pub fn init_tilemap(
     let mut map = Map::new(0u16, map_entity);
 
     let square_chunk_size = 8u32;
-    //let map_tile_dims = (DEBUG_MAP[0].len() as u32, DEBUG_MAP.len() as u32);
     let map_tile_dims = {
         let rect_size = cell_map.rect_size();
         let w = rect_size.0 + 2 * border_size;

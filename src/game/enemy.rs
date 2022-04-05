@@ -1,5 +1,5 @@
-use crate::asset_handling::asset::ImageAsset;
-use crate::asset_handling::ImageAssetStore;
+use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
+use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
 use crate::game::components::{
     CanMoveDistance, MoveWeighting, SimpleTileResidentBundle, TileResidentBundle,
 };
@@ -18,16 +18,12 @@ pub struct Crab;
 
 pub fn add_sharks(
     commands: &mut Commands,
-    image_assets: &Res<ImageAssetStore>,
-    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    atlases: &Res<TextureAtlasStore>,
     num_sharks: usize,
     cell_map: &CellMap<i32>,
     exclude_positions: Option<&Vec<(i32, i32)>>,
 ) -> Vec<(i32, i32)> {
-    //let texture_handle = asset_server.load("sprites/shark_spritesheet.png");
-    let texture_handle = image_assets.get(&ImageAsset::SharkSpritesheet);
-    let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 4);
-    let atlas_handle = texture_atlases.add(atlas);
+    let atlas_handle = atlases.get(&TextureAtlasAsset::SharkSpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_sharks, exclude_positions);
     for (x, y) in spawn_positions.iter() {
         let tile_pos = TilePos(*x as u32, *y as u32);
@@ -48,16 +44,12 @@ pub fn add_sharks(
 
 pub fn add_crabs(
     commands: &mut Commands,
-    image_assets: &Res<ImageAssetStore>,
-    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+    atlases: &Res<TextureAtlasStore>,
     num_crabs: usize,
     cell_map: &CellMap<i32>,
     exclude_positions: Option<&Vec<(i32, i32)>>,
 ) {
-    //let texture_handle = asset_server.load("sprites/crab_spritesheet.png");
-    let texture_handle = image_assets.get(&ImageAsset::CrabSpritesheet);
-    let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 1);
-    let atlas_handle = texture_atlases.add(atlas);
+    let atlas_handle = atlases.get(&TextureAtlasAsset::CrabSpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_crabs, exclude_positions);
     for (x, y) in spawn_positions.into_iter() {
         let tile_pos = TilePos(x as u32, y as u32);

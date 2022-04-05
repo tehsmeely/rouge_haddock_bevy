@@ -1,4 +1,4 @@
-use super::asset::{AssetClass, ImageAsset};
+use super::asset::{AssetClass, ImageAsset, TextureAtlasAsset};
 use crate::CoreState;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
@@ -9,9 +9,15 @@ use strum::IntoEnumIterator;
 pub struct LoadingPlugin;
 
 pub struct ImageAssetStore(HashMap<ImageAsset, Handle<Image>>);
+pub struct TextureAtlasStore(HashMap<TextureAtlasAsset, Handle<TextureAtlas>>);
 
 impl ImageAssetStore {
     pub fn get(&self, key: &ImageAsset) -> Handle<Image> {
+        self.0.get(key).unwrap().clone()
+    }
+}
+impl TextureAtlasStore {
+    pub fn get(&self, key: &TextureAtlasAsset) -> Handle<TextureAtlas> {
         self.0.get(key).unwrap().clone()
     }
 }
@@ -28,13 +34,39 @@ impl Plugin for LoadingPlugin {
     }
 }
 
-fn load_all(asset_server: Res<AssetServer>, mut commands: Commands) {
+fn load_all(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+    texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
     let mut image_handles = HashMap::new();
     for asset in ImageAsset::iter() {
         let handle = asset_server.load(asset.to_filename());
         image_handles.insert(asset, handle);
     }
-    commands.insert_resource(ImageAssetStore(image_handles));
+    let image_asset_store = ImageAssetStore(image_handles);
+    let texture_atlas_store = load_texture_atlases(&image_asset_store, texture_atlases);
+    commands.insert_resource(image_asset_store);
+    commands.insert_resource(texture_atlas_store);
+}
+
+fn load_texture_atlases(
+    image_asset_store: &ImageAssetStore,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+) -> TextureAtlasStore {
+    let mut atlas_handles = HashMap::new();
+    for asset in TextureAtlasAsset::iter() {
+        let image_asset = image_asset_store.get(&asset.to_image_asset());
+        let atlas = TextureAtlas::from_grid(
+            image_asset,
+            asset.frame_size(),
+            asset.columns(),
+            asset.rows(),
+        );
+        let handle = texture_atlases.add(atlas);
+        atlas_handles.insert(asset, handle);
+    }
+    TextureAtlasStore(atlas_handles)
 }
 
 fn loading_watcher(

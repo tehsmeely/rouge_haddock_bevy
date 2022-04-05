@@ -23,8 +23,9 @@ use crate::map_gen::cell_map::CellMap;
 
 use bevy_kira_audio::Audio;
 
-use crate::asset_handling::asset::ImageAsset;
-use crate::asset_handling::ImageAssetStore;
+use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
+use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
+use bevy::render::render_resource::Texture;
 use std::time::Duration;
 
 pub struct GamePlugin;
@@ -648,8 +649,7 @@ fn player_power_system(
         QueryState<(Entity, &TilePos), With<Enemy>>,
     )>,
     mut commands: Commands,
-    image_assets: Res<ImageAssetStore>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    atlases: Res<TextureAtlasStore>,
     mut power_event_reader: EventReader<PowerEvent>,
     mut map_query: MapQuery,
     tile_type_query: Query<&HasTileType>,
@@ -672,8 +672,7 @@ fn player_power_system(
                 let end_target_entity = fate.entity();
                 super::projectile::spawn_projectile(
                     &mut commands,
-                    &image_assets,
-                    &mut texture_atlases,
+                    &atlases,
                     direction,
                     start_pos,
                     end_point,
@@ -698,6 +697,7 @@ fn debug_print_input_system(
     mut commands: Commands,
     mut asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    atlases: Res<TextureAtlasStore>,
     mut info_event_writer: EventWriter<InfoEvent>,
     image_assets: Res<ImageAssetStore>,
 ) {
@@ -731,8 +731,7 @@ fn debug_print_input_system(
         let recalculated_map = cell_map.recalculate(start_point);
         let _: Vec<(i32, i32)> = super::enemy::add_sharks(
             &mut commands,
-            &image_assets,
-            &mut texture_atlases,
+            &atlases,
             4,
             &recalculated_map,
             Some(&exclude_positions),
@@ -752,7 +751,7 @@ fn debug_print_input_system(
 fn setup(
     mut commands: Commands,
     image_assets: Res<ImageAssetStore>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    texture_atlas_store: Res<TextureAtlasStore>,
     map_query: MapQuery,
 ) {
     let border_size = 20usize;
@@ -772,10 +771,7 @@ fn setup(
         .spawn_bundle(OrthographicCameraBundle::new_2d())
         .insert(GameOnly)
         .insert(GameCamera);
-    //let texture_handle = asset_server.load("sprites/haddock_spritesheet.png");
-    let texture_handle = image_assets.get(&ImageAsset::HaddockSpritesheet);
-    let atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 5, 4);
-    let atlas_handle = texture_atlases.add(atlas);
+    let atlas_handle = texture_atlas_store.get(&TextureAtlasAsset::HaddockSpritesheet);
     let start_point = {
         let start_point = cell_map.start_point().unwrap_or((1, 1));
         TilePos(start_point.0 as u32, start_point.1 as u32)
@@ -788,18 +784,11 @@ fn setup(
         })
         .insert(PowerCharges::new(3))
         .insert(Player);
-    let shark_positions = super::enemy::add_sharks(
-        &mut commands,
-        &image_assets,
-        &mut texture_atlases,
-        7,
-        &cell_map,
-        None,
-    );
+    let shark_positions =
+        super::enemy::add_sharks(&mut commands, &texture_atlas_store, 7, &cell_map, None);
     super::enemy::add_crabs(
         &mut commands,
-        &image_assets,
-        &mut texture_atlases,
+        &texture_atlas_store,
         3,
         &cell_map,
         Some(&shark_positions),
