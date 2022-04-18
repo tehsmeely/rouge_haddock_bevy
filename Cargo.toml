@@ -25,6 +25,8 @@ interpolation = "0.2.0"
 code_location = "1.1.0"
 strum = "0.24.0"
 strum_macros = "0.24.0"
+ron = "0.7.0"
+serde = "1.0.136"
 
 [dependencies.bevy]
 # Sadly compiling with "Dynamic" casuses a msvc "fatal error LNK1189: library limit of 65535 objects exceeded"

@@ -32,7 +32,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        let state = crate::CoreState::Game;
+        let state = crate::CoreState::GameLevel;
         app.add_system_set(SystemSet::on_enter(state).with_system(setup))
             .add_system_set(
                 SystemSet::on_update(state)

@@ -1,24 +1,9 @@
-use crate::game::components::{Health, Player, PowerCharges};
-use crate::game::turn::GlobalTurnCounter;
-
-use crate::helpers::cleanup::recursive_cleanup;
 use bevy::prelude::*;
 use log::info;
 
-trait RectExt {
-    fn new_2(v_topbottom: Val, v_leftright: Val) -> Self;
-}
-
-impl RectExt for Rect<Val> {
-    fn new_2(v_topbottom: Val, v_leftright: Val) -> Self {
-        Rect {
-            left: v_leftright,
-            right: v_leftright,
-            top: v_topbottom,
-            bottom: v_topbottom,
-        }
-    }
-}
+use crate::game::components::{Health, Player, PowerCharges};
+use crate::game::turn::GlobalTurnCounter;
+use crate::helpers::cleanup::recursive_cleanup;
 
 #[derive(Debug, Component)]
 pub struct GameUiOnly;
@@ -27,13 +12,13 @@ pub struct GameUiPlugin;
 
 impl Plugin for GameUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(crate::CoreState::Game).with_system(ui_setup))
+        app.add_system_set(SystemSet::on_enter(crate::CoreState::GameLevel).with_system(ui_setup))
             .add_system_set(
-                SystemSet::on_exit(crate::CoreState::Game)
+                SystemSet::on_exit(crate::CoreState::GameLevel)
                     .with_system(recursive_cleanup::<GameUiOnly>),
             )
             .add_system_set(
-                SystemSet::on_update(crate::CoreState::Game)
+                SystemSet::on_update(crate::CoreState::GameLevel)
                     .with_system(ui_player_health_system)
                     .with_system(ui_player_power_system)
                     .with_system(ui_turn_counter_system),
@@ -107,8 +92,9 @@ fn ui_turn_counter_system(
 }
 
 mod ui_components {
-    use super::RectExt;
     use bevy::prelude::*;
+
+    use crate::menu_core::helpers::RectExt;
 
     #[derive(Debug, Component)]
     pub struct HealthCounter;

@@ -11,28 +11,36 @@ use winit::window::Icon;
 
 mod asset_handling;
 mod game;
+mod game_menus;
 mod helpers;
+mod main_menu;
 mod map_gen;
-mod menu;
+mod menu_core;
+mod profiles;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 enum CoreState {
     Loading,
     MainMenu,
-    Game,
+    GameLevel,
+    GameHub,
+    GameStore,
+    LoadMenu,
+    NewGameMenu,
 }
 
 pub fn main() {
-    let initial_state=
-        // TODO: This is possibly wrong for debug purposes
-        CoreState::Loading;
+    let initial_state = CoreState::Loading;
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(TilemapPlugin)
         .add_plugin(AudioPlugin)
         .add_plugin(crate::game::Plugin)
-        .add_plugin(crate::menu::Plugin)
+        .add_plugin(crate::main_menu::Plugin)
         .add_plugin(crate::asset_handling::Plugin)
+        .add_plugin(crate::game_menus::HubMenuPlugin)
+        .add_plugin(crate::game_menus::StoreMenuPlugin)
+        .add_plugin(crate::game_menus::LoadMenuPlugin)
         .add_state(initial_state)
         .add_system(setup_window_title)
         .run();
