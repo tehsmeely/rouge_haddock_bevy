@@ -197,7 +197,7 @@ fn waggle_system(
 fn simple_animate_sprite_system(
     time: Res<Time>,
     mut query: Query<(
-        &mut Timer,
+        &mut AnimationTimer,
         &mut TextureAtlasSprite,
         &mut SimpleSpriteAnimation,
     )>,
@@ -214,7 +214,7 @@ fn simple_animate_sprite_system(
 fn animate_sprite_system(
     time: Res<Time>,
     mut query: Query<(
-        &mut Timer,
+        &mut AnimationTimer,
         &mut TextureAtlasSprite,
         &Facing,
         &mut DirectionalSpriteAnimation,
@@ -254,13 +254,13 @@ fn animate_move_system(mut query: Query<(&mut Transform, &mut MovementAnimate)>)
 }
 
 fn camera_follow_system(
-    mut query: QuerySet<(
-        QueryState<(&Transform, &CameraFollow)>,
-        QueryState<&mut Transform, With<GameCamera>>,
+    mut query: ParamSet<(
+        Query<(&Transform, &CameraFollow)>,
+        Query<&mut Transform, With<GameCamera>>,
     )>,
 ) {
     let pos = query
-        .q0()
+        .p0()
         .get_single()
         .ok_log(code_location!())
         .map(|(transform, follow)| {
@@ -273,7 +273,7 @@ fn camera_follow_system(
         });
 
     if let Some((x, y, x_threshold, y_threshold)) = pos {
-        if let Some(mut camera_transform) = query.q1().get_single_mut().ok_log(code_location!()) {
+        if let Some(mut camera_transform) = query.p1().get_single_mut().ok_log(code_location!()) {
             if (x - camera_transform.translation.x).abs() > x_threshold {
                 camera_transform.translation.x = x
             }
@@ -502,22 +502,22 @@ fn enemy_system(
     mut local_turn_counter: Local<TurnCounter>,
     enemy_query: Query<(Entity, &CanMoveDistance, &MoveWeighting), With<Enemy>>,
     health_query: Query<&mut Health>,
-    mut move_query: QuerySet<(
-        QueryState<&TilePos, With<Player>>,
-        QueryState<&TilePos, With<Enemy>>,
-        QueryState<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
-        QueryState<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
+    mut move_query: ParamSet<(
+        Query<&TilePos, With<Player>>,
+        Query<&TilePos, With<Enemy>>,
+        Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
+        Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     )>,
     mut map_query: MapQuery,
     tile_type_query: Query<&HasTileType>,
 ) {
-    let player_position = *move_query.q0().get_single().unwrap();
+    let player_position = *move_query.p0().get_single().unwrap();
     if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
         let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
         let mut moved_to = Vec::new();
         for (entity, can_move_distance, move_weights) in enemy_query.iter() {
-            let current_pos = *move_query.q1().get(entity).unwrap();
+            let current_pos = *move_query.p1().get(entity).unwrap();
             let direction =
                 MapDirection::weighted_rand_choice(&current_pos, &player_position, move_weights);
             let decision = super::movement::decide_move(
@@ -525,7 +525,7 @@ fn enemy_system(
                 &direction,
                 can_move_distance.get(&direction),
                 &attack_criteria,
-                move_query.q2(),
+                move_query.p2(),
                 &mut map_query,
                 &tile_type_query,
                 &moved_to,
@@ -537,7 +537,7 @@ fn enemy_system(
         }
         println!("Move Decisions: {:?}", move_decisions);
 
-        super::movement::apply_move(move_decisions, move_query.q3(), health_query);
+        super::movement::apply_move(move_decisions, move_query.p3(), health_query);
         local_turn_counter.incr();
         game_event_writer.send(GameEvent::PhaseComplete(GamePhase::EnemyMovement));
     }
@@ -563,11 +563,11 @@ fn player_movement_system(
     mut game_event_writer: EventWriter<GameEvent>,
     mut power_event_writer: EventWriter<PowerEvent>,
     mut input_events: EventReader<InputEvent>,
-    mut move_query: QuerySet<(
-        QueryState<(Entity, &TilePos), With<Player>>,
-        QueryState<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
-        QueryState<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
-        QueryState<&mut Facing, With<Player>>,
+    mut move_query: ParamSet<(
+        Query<(Entity, &TilePos), With<Player>>,
+        Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
+        Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
+        Query<&mut Facing, With<Player>>,
     )>,
     mut power_query: Query<&mut PowerCharges, With<Player>>,
     mut health_query: Query<&mut Health>,
@@ -582,15 +582,18 @@ fn player_movement_system(
                 let can_take_turn = global_turn_counter
                     .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
-                    let (player_entity, current_pos) = move_query.q0().get_single().unwrap();
-                    let current_pos = *current_pos;
+                    let (player_entity, current_pos) = {
+                        let q = move_query.p0();
+                        let (player_entity, current_pos) = q.get_single().unwrap();
+                        (player_entity.clone(), current_pos.clone())
+                    };
 
                     let move_decision = super::movement::decide_move(
                         &current_pos,
                         direction,
                         1,
                         &AttackCriteria::for_player(),
-                        move_query.q1(),
+                        move_query.p1(),
                         &mut map_query,
                         &tile_type_query,
                         &vec![],
@@ -599,7 +602,7 @@ fn player_movement_system(
                     super::movement::apply_move_single(
                         player_entity,
                         &move_decision,
-                        &mut move_query.q2(),
+                        &mut move_query.p2(),
                         &mut health_query,
                     );
 
@@ -612,7 +615,7 @@ fn player_movement_system(
                     .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
                     info!("Player Turning: {:?}", dir);
-                    move_query.q3().single_mut().0 = dir.clone();
+                    move_query.p3().single_mut().0 = dir.clone();
                     local_turn_counter.incr();
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 }
@@ -644,9 +647,9 @@ fn player_movement_system(
 }
 
 fn player_power_system(
-    mut query: QuerySet<(
-        QueryState<(&Transform, &TilePos, &Facing), With<Player>>,
-        QueryState<(Entity, &TilePos), With<Enemy>>,
+    mut query: ParamSet<(
+        Query<(&Transform, &TilePos, &Facing), With<Player>>,
+        Query<(Entity, &TilePos), With<Enemy>>,
     )>,
     mut commands: Commands,
     atlases: Res<TextureAtlasStore>,
@@ -658,13 +661,14 @@ fn player_power_system(
         match event {
             PowerEvent::PowerFired => {
                 let (start_pos, tilepos, direction): (Vec3, TilePos, MapDirection) = {
-                    let (transform, tilepos, facing) = query.q0().single();
+                    let q = query.p0();
+                    let (transform, tilepos, facing) = q.single();
                     ((*transform).translation, *tilepos, facing.0.clone())
                 };
                 let fate = super::projectile::scan_to_endpoint(
                     &tilepos,
                     &direction,
-                    &query.q1(),
+                    &query.p1(),
                     &mut map_query,
                     &tile_type_query,
                 );
@@ -684,11 +688,11 @@ fn player_power_system(
 }
 
 fn debug_print_input_system(
-    mut query: QuerySet<(
-        QueryState<(&Transform, &GlobalTransform)>,
-        QueryState<Entity, With<Player>>,
-        QueryState<(&TilePos, &Transform), With<Player>>,
-        QueryState<&TilePos, With<Enemy>>,
+    mut query: ParamSet<(
+        Query<(&Transform, &GlobalTransform)>,
+        Query<Entity, With<Player>>,
+        Query<(&TilePos, &Transform), With<Player>>,
+        Query<&TilePos, With<Enemy>>,
     )>,
     mut player_health_q: Query<&mut Health, With<Player>>,
     mut player_charges_q: Query<&mut PowerCharges, With<Player>>,
@@ -702,13 +706,13 @@ fn debug_print_input_system(
     image_assets: Res<ImageAssetStore>,
 ) {
     if input.just_pressed(KeyCode::P) {
-        for (trans, global_trans) in query.q0().iter() {
+        for (trans, global_trans) in query.p0().iter() {
             println!("{:?} (Global: {:?}", trans, global_trans)
         }
     }
 
     if input.just_pressed(KeyCode::G) {
-        let player_entity = query.q1().single();
+        let player_entity = query.p1().single();
         commands
             .entity(player_entity)
             .insert(Waggle::new(5, -0.4, 0.4, 10.0));
@@ -720,12 +724,13 @@ fn debug_print_input_system(
     if input.just_pressed(KeyCode::O) {
         info!("Spawning more sharks");
         let exclude_positions = query
-            .q3()
+            .p3()
             .iter()
             .map(|tilepos: &TilePos| tilepos.as_i32s())
             .collect::<Vec<(i32, i32)>>();
         let start_point = {
-            let (TilePos(x, y), _trans) = query.q2().single();
+            let q = query.p2();
+            let (TilePos(x, y), _trans) = q.single();
             (*x as i32, *y as i32)
         };
         let recalculated_map = cell_map.recalculate(start_point);

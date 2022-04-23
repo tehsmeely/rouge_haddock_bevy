@@ -1,5 +1,5 @@
 use crate::game::components::{
-    CameraFollow, GameOnly, MovementAnimate, Player, SimpleSpriteAnimation,
+    AnimationTimer, CameraFollow, GameOnly, MovementAnimate, Player, SimpleSpriteAnimation,
 };
 use crate::game::events::GameEvent;
 use crate::game::tilemap::TilePosExt;
@@ -138,7 +138,7 @@ pub fn spawn(
             ..Default::default()
         })
         .insert(GameOnly)
-        .insert(Timer::from_seconds(0.250, true))
+        .insert(AnimationTimer(Timer::from_seconds(0.250, true)))
         .insert(EndGameHook)
         .insert(spawn_pos)
         .insert(SimpleSpriteAnimation::new(0, 4));

@@ -31,9 +31,6 @@ fn button_click_system(
         if *interaction == Interaction::Clicked {
             match button {
                 MenuButton::Play => {
-                    //TODO: Play should not direct to game hub, resource loading to be done
-                    // somewhere else!
-                    commands.insert_resource(UserProfile::default());
                     app_state.set(crate::CoreState::LoadMenu).unwrap();
                 }
                 MenuButton::Quit => app_exit_events.send(AppExit),

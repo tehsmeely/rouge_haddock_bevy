@@ -22,6 +22,7 @@ pub enum StoreButton {
 }
 #[derive(Component)]
 pub enum LoadButton {
+    Load,
     Back,
 }
 #[derive(Component)]
@@ -48,6 +49,7 @@ impl ButtonComponent for StoreButton {
 impl ButtonComponent for LoadButton {
     fn to_text(&self) -> &'static str {
         match self {
+            Self::Load => "Load",
             Self::Back => "Back",
         }
     }

@@ -22,6 +22,9 @@ pub struct CameraFollow {
     pub y_threshold: f32,
 }
 
+#[derive(Debug, Default, Component, Deref, DerefMut)]
+pub struct AnimationTimer(pub Timer);
+
 // Not called "Direction" as to not smash with the Direction in bevy prelude
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MapDirection {
@@ -355,7 +358,6 @@ impl Waggle {
                 self.count -= 1;
             }
         } else {
-            
         }
     }
     pub fn finished(&self) -> bool {
@@ -448,7 +450,7 @@ impl PowerCharges {
 pub struct TileResidentBundle {
     #[bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
-    timer: Timer,
+    animation_timer: AnimationTimer,
     facing: Facing,
     directional_animation: DirectionalSpriteAnimation,
     tile_pos: TilePos,
@@ -474,7 +476,7 @@ impl TileResidentBundle {
                 transform: Transform::from_translation(start_pos),
                 ..Default::default()
             },
-            timer: Timer::from_seconds(0.1, true),
+            animation_timer: AnimationTimer(Timer::from_seconds(0.1, true)),
             facing: (Facing::default()),
             directional_animation: DirectionalSpriteAnimation::new(
                 frames_per_direction,
@@ -493,7 +495,7 @@ impl TileResidentBundle {
 pub struct SimpleTileResidentBundle {
     #[bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
-    timer: Timer,
+    animation_timer: AnimationTimer,
     facing: Facing,
     simple_animation: SimpleSpriteAnimation,
     tile_pos: TilePos,
@@ -518,7 +520,7 @@ impl SimpleTileResidentBundle {
                 transform: Transform::from_translation(start_pos),
                 ..Default::default()
             },
-            timer: Timer::from_seconds(0.1, true),
+            animation_timer: AnimationTimer(Timer::from_seconds(0.1, true)),
             facing: (Facing::default()),
             simple_animation: SimpleSpriteAnimation::new(initial_frame, animation_frames),
             tile_pos: (tile_pos),

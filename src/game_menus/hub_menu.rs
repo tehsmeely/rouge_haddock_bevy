@@ -7,7 +7,7 @@ use crate::game_menus::components::{HubButton, HubMenuOnly};
 use crate::menu_core::menu_core;
 use crate::menu_core::menu_core::rect_consts::CENTRED;
 use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_text_custom};
-use crate::profiles::profiles::UserProfile;
+use crate::profiles::profiles::{LoadedUserProfile, UserProfile};
 use bevy::reflect::erased_serde::private::serde::Serialize;
 
 pub struct MenuPlugin;
@@ -46,19 +46,11 @@ fn button_click_system(
     }
 }
 
-fn debug_insert_user_profile(mut commands: Commands, user_profile: Res<Option<UserProfile>>) {
-    if user_profile.is_none() {
-        warn!("User profile not populated prior to hub");
-        let new_user_profile = UserProfile::default();
-        commands.insert_resource(new_user_profile);
-    }
-}
-
 fn menu_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     image_assets: Res<ImageAssetStore>,
-    user_profile: Res<UserProfile>,
+    loaded_profile: Res<LoadedUserProfile>,
 ) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
     // ui camera
@@ -79,7 +71,12 @@ fn menu_setup(
         })
         .insert(HubMenuOnly {})
         .with_children(|parent| {
-            left_bar_stats_bundle(parent, font.clone(), &image_assets, &user_profile);
+            left_bar_stats_bundle(
+                parent,
+                font.clone(),
+                &image_assets,
+                &loaded_profile.user_profile,
+            );
             right_bar_button_bundle(parent, font.clone());
         });
 }

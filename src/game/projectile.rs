@@ -1,15 +1,17 @@
 use super::tilemap::TilePosExt;
 use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
 use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
-use crate::game::components::{DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType};
+use crate::game::components::{
+    AnimationTimer, DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType,
+};
 use crate::game::events::GameEvent;
 use crate::game::tilemap::HasTileType;
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
-use bevy::app::EventWriter;
 use bevy::asset::{AssetServer, Assets};
 use bevy::core::{Time, Timer};
 use bevy::ecs::change_detection::ResMut;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::event::EventWriter;
 use bevy::ecs::prelude::{Commands, Local, Query, Res, With};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, TextureAtlas};
@@ -206,7 +208,7 @@ pub fn spawn_projectile(
             transform: Transform::from_translation(start_pos),
             ..Default::default()
         })
-        .insert(Timer::from_seconds(0.1, true))
+        .insert(AnimationTimer(Timer::from_seconds(0.1, true)))
         .insert(Facing(direction))
         .insert(DirectionalSpriteAnimation::new(4, 0, 0))
         .insert(Projectile::new(end_point, 500., end_target_entity));
