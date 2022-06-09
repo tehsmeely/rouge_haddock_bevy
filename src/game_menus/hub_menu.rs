@@ -59,16 +59,7 @@ fn menu_setup(
         .insert(HubMenuOnly);
 
     commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::Row,
-                ..Default::default()
-            },
-            ..Default::default()
-        })
+        .spawn_bundle(crate::menu_core::nodes::full_width())
         .insert(HubMenuOnly {})
         .with_children(|parent| {
             left_bar_stats_bundle(
@@ -89,17 +80,7 @@ fn left_bar_stats_bundle(
 ) {
     let image = image_assets.get(&ImageAsset::HaddockSprite);
     parent
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(50.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::ColumnReverse,
-                ..Default::default()
-            },
-            color: UiColor(Color::RED),
-            ..Default::default()
-        })
+        .spawn_bundle(crate::menu_core::nodes::half_width())
         .with_children(|parent| {
             // TODO: Load this data from state - and prepare to update it ofc
             standard_centred_text_custom(parent, user_profile.name.clone(), font.clone(), 60.0);
@@ -123,17 +104,7 @@ fn left_bar_stats_bundle(
 
 fn right_bar_button_bundle(parent: &mut ChildBuilder, font: Handle<Font>) {
     parent
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(50.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::Column,
-                ..Default::default()
-            },
-            color: UiColor(Color::GREEN),
-            ..Default::default()
-        })
+        .spawn_bundle(crate::menu_core::nodes::half_width())
         .with_children(|parent| {
             menu_core::make_button(HubButton::Quit, parent, font.clone());
             menu_core::make_button(HubButton::Store, parent, font.clone());

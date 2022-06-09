@@ -76,8 +76,8 @@ impl TextureAtlasAsset {
     }
     pub fn rows(&self) -> usize {
         match self {
-            Self::HaddockSpritesheet | Self::SharkSpritesheet => 4,
-            Self::CrabSpritesheet | Self::ProjectileSpritesheet => 1,
+            Self::HaddockSpritesheet | Self::SharkSpritesheet | Self::ProjectileSpritesheet => 4,
+            Self::CrabSpritesheet => 1,
         }
     }
 }

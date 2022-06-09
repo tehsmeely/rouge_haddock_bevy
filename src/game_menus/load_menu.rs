@@ -65,16 +65,7 @@ fn menu_setup(
 
     println!("LoadMenu Setup Middle");
     commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::Row,
-                ..Default::default()
-            },
-            ..Default::default()
-        })
+        .spawn_bundle(crate::menu_core::nodes::full_width())
         .insert(LoadMenuOnly {})
         .with_children(|parent| {
             make_button(LoadButton::Back, parent, font.clone());

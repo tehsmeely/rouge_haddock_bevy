@@ -13,7 +13,7 @@ const DEBUG_COLOURS: [Color; 5] = [
 ];
 
 fn debug_get_colour() -> Color {
-    let mut i = DEBUG_COLOUR_I.load(Ordering::Relaxed);
+    let mut i = DEBUG_COLOUR_I.load(Ordering::Relaxed) + 1;
     if i > DEBUG_COLOURS.len() {
         i = 0;
     }
@@ -40,7 +40,7 @@ pub fn half_width() -> NodeBundle {
             size: Size::new(Val::Percent(50.0), Val::Percent(100.0)),
             margin: Rect::all(Val::Auto),
             justify_content: JustifyContent::Center,
-            flex_direction: FlexDirection::Row,
+            flex_direction: FlexDirection::Column,
             ..Default::default()
         },
         color: UiColor(debug_get_colour()),
