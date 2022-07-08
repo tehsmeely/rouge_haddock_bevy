@@ -1,4 +1,3 @@
-
 use log::warn;
 
 #[derive(Debug)]
@@ -7,6 +6,10 @@ pub struct TurnCounter(usize);
 impl TurnCounter {
     pub fn incr(&mut self) {
         self.0 += 1;
+    }
+
+    pub fn reset(&mut self) {
+        self.0 = 0;
     }
 }
 impl Default for TurnCounter {
@@ -19,6 +22,7 @@ impl Default for TurnCounter {
 pub struct GlobalTurnCounter {
     pub turn_count: usize,
     pub current_phase: GamePhase,
+    pub reset: bool,
 }
 
 impl Default for GlobalTurnCounter {
@@ -26,6 +30,7 @@ impl Default for GlobalTurnCounter {
         Self {
             turn_count: 1,
             current_phase: GamePhase::PlayerMovement,
+            reset: true,
         }
     }
 }
@@ -35,6 +40,9 @@ impl GlobalTurnCounter {
         if *from_phase == self.current_phase {
             if self.current_phase.last() {
                 self.turn_count += 1;
+                if self.reset {
+                    self.reset = false;
+                }
             }
             self.current_phase = self.current_phase.next();
         } else {
@@ -42,8 +50,20 @@ impl GlobalTurnCounter {
         }
     }
 
-    pub fn can_take_turn(&self, local_count: &TurnCounter, phase: GamePhase) -> bool {
+    pub fn can_take_turn(&self, local_count: &mut TurnCounter, phase: GamePhase) -> bool {
+        if self.reset && local_count.0 > self.turn_count {
+            local_count.0 = self.turn_count - 1;
+            println!("Resetting local count: {:?}", self);
+        }
+
         local_count.0 < self.turn_count && phase == self.current_phase
+    }
+
+    pub fn reset(&mut self) {
+        let default = Self::default();
+        self.turn_count = default.turn_count;
+        self.current_phase = default.current_phase;
+        self.reset = true;
     }
 }
 
@@ -68,5 +88,29 @@ impl GamePhase {
             GamePhase::EnemyMovement => true,
             _ => false,
         }
+    }
+}
+
+pub struct GlobalLevelCounter {
+    level_count: usize,
+}
+
+impl Default for GlobalLevelCounter {
+    fn default() -> Self {
+        Self { level_count: 1 }
+    }
+}
+
+impl GlobalLevelCounter {
+    pub fn increment(&mut self) {
+        self.level_count += 1;
+    }
+
+    pub fn level(&self) -> usize {
+        self.level_count
+    }
+
+    pub fn reset(&mut self) {
+        self.level_count = 1;
     }
 }

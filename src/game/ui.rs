@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use log::info;
 
 use crate::game::components::{Health, Player, PowerCharges};
-use crate::game::turn::GlobalTurnCounter;
+use crate::game::turn::{GlobalLevelCounter, GlobalTurnCounter};
 use crate::helpers::cleanup::recursive_cleanup;
 
 #[derive(Debug, Component)]
@@ -76,18 +76,28 @@ fn ui_player_power_system(
 
 fn ui_turn_counter_system(
     global_turn_counter: Res<GlobalTurnCounter>,
+    global_level_counter: Res<GlobalLevelCounter>,
     mut last_set_turn: Local<usize>,
     mut ui_query: Query<&mut Text, With<ui_components::TurnCounter>>,
+    mut double_set: Local<usize>,
 ) {
-    if *last_set_turn != global_turn_counter.turn_count {
+    if (*last_set_turn != global_turn_counter.turn_count) || *double_set > 0 {
         info!(
             "Setting turn counter ui to: {}",
             global_turn_counter.turn_count
         );
         for mut text in ui_query.iter_mut() {
-            text.sections[0].value = format!("Turn: {}", global_turn_counter.turn_count);
+            text.sections[0].value = format!(
+                "{} - Turn: {}",
+                global_level_counter.level(),
+                global_turn_counter.turn_count
+            );
         }
         *last_set_turn = global_turn_counter.turn_count;
+        *double_set = match *double_set {
+            0_usize => 1,
+            _ => 0,
+        };
     }
 }
 

@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::utils::Duration;
 use bevy_ecs_tilemap::{Tile, TilePos};
 use interpolation::Lerp;
+use num::clamp;
 use rand::Rng;
 use std::collections::HashMap;
 
@@ -306,6 +307,41 @@ impl MovementAnimate {
 }
 
 #[derive(Component, Debug)]
+pub struct Shrinking {
+    pub factor: f32,
+}
+
+#[derive(Component, Debug)]
+pub struct Rotating {
+    factor: f32,
+    current_rotation: f32,
+}
+
+impl Rotating {
+    pub fn new(speed: f32) -> Self {
+        Self {
+            factor: speed,
+            current_rotation: 0f32,
+        }
+    }
+    pub fn update(&mut self, current: &mut Quat, delta: &Duration) {
+        let rotation_this_step = self.factor * delta.as_secs_f32();
+        let mut new_rotation = self.current_rotation + rotation_this_step;
+        if new_rotation > std::f32::consts::TAU {
+            new_rotation -= std::f32::consts::TAU;
+        } else if new_rotation < 0f32 {
+            new_rotation += std::f32::consts::TAU;
+        }
+        *current = Quat::from_rotation_z(new_rotation);
+        self.current_rotation = new_rotation;
+    }
+
+    pub fn change_speed(&mut self, new_speed: f32) {
+        self.factor = new_speed;
+    }
+}
+
+#[derive(Component, Debug)]
 pub struct Waggle {
     count: usize,
     rotation_anticlockwise: f32,
@@ -396,6 +432,37 @@ impl TileType {
                 texture_index: 1,
                 ..Default::default()
             },
+        }
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct PlayerDeathAnimation {
+    height_pct: f32,
+    delay: Duration,
+    factor: f32,
+}
+
+impl PlayerDeathAnimation {
+    pub fn new(delay: Duration, factor: f32) -> Self {
+        Self {
+            height_pct: 100_f32,
+            delay,
+            factor,
+        }
+    }
+    pub fn update(&mut self, transform: &mut Transform, delta: &Duration) -> bool {
+        self.delay = self.delay.saturating_sub(delta.clone());
+        if self.delay == Duration::ZERO {
+            self.height_pct = clamp(
+                self.height_pct - (delta.as_secs_f32() * self.factor),
+                0f32,
+                100f32,
+            );
+            transform.scale.y = self.height_pct / 100f32;
+            self.height_pct == 0f32
+        } else {
+            false
         }
     }
 }

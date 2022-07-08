@@ -25,6 +25,9 @@ use bevy_kira_audio::Audio;
 
 use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
 use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
+use crate::game::end_game::{EndGameHook, EndGameVortex};
+use crate::game::turn::GlobalLevelCounter;
+use crate::profiles::profiles::LoadedUserProfile;
 use bevy::render::render_resource::Texture;
 use std::time::Duration;
 
@@ -57,34 +60,81 @@ impl Plugin for GamePlugin {
                     .with_system(input_event_debug_system.after("input"))
                     .with_system(health_watcher_system.after("enemy_movement"))
                     .with_system(player_damaged_effect_system.after("enemy_movement"))
+                    .with_system(player_death_animation_system.after("enemy_movement"))
                     .with_system(sfx_system)
                     .with_system(waggle_system)
-                    .with_system(player_death_system)
+                    .with_system(rotate_system)
+                    .with_system(shrinking_system)
                     .with_system(end_of_game_watcher_system)
+                    .with_system(vortex_spawner_system)
                     .with_system(end_of_level_event_system)
+                    .with_system(regular_game_enable_watcher)
                     .with_system(super::end_game::end_game_hook_system)
+                    .with_system(super::end_game::end_game_vortex_system)
                     .with_system(super::end_game::hooked_animation_system)
+                    .with_system(super::end_game::vortex_animation_system)
                     .with_system(super::projectile::projectile_watcher_system)
-                    .with_system(super::projectile::projectile_system),
+                    .with_system(super::projectile::projectile_system)
+                    .with_system(super::snails::snail_pickup_system),
             )
             .add_system_set(
                 SystemSet::on_exit(state)
                     .with_system(recursive_cleanup::<GameOnly>)
+                    .with_system(state_cleanup)
                     .with_system(super::tilemap::cleanup),
+            )
+            .add_system_set(
+                SystemSet::on_enter(crate::CoreState::GameLevelTransition)
+                    .with_system(game_level_transition),
             )
             .add_plugin(TimedRemovalPlugin)
             .add_plugin(GameUiPlugin)
-            /* .add_system(
-                // TODO: when pre-loading is implemented we can do away with this (i think)
-                crate::helpers::texture::set_texture_filters_to_nearest,
-            )*/
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
             .add_event::<super::events::PowerEvent>()
             .add_event::<MouseClickEvent>()
-            .insert_resource(GlobalTurnCounter::default());
+            .insert_resource(GlobalTurnCounter::default())
+            .insert_resource(GlobalLevelCounter::default())
+            .insert_resource(SnailsCollectedThisRun(0_usize))
+            .insert_resource(RegularGameEnable {
+                enabled: false,
+                disable_cycle_count: 1,
+            });
     }
+}
+
+/// Resource to indicate regular game process. Serves to be disabled at edges like when animating
+/// end of game so some things can skip processing or ignore changes
+pub struct RegularGameEnable {
+    pub enabled: bool,
+    pub disable_cycle_count: usize,
+}
+
+/// Resource indicates snails collected this run (persists across levels but is processed when
+/// exiting (via death or hook)
+pub struct SnailsCollectedThisRun(pub usize);
+
+fn regular_game_enable_watcher(mut regular_game_enable: ResMut<RegularGameEnable>) {
+    if regular_game_enable.disable_cycle_count > 0 {
+        regular_game_enable.disable_cycle_count -= 1;
+        if regular_game_enable.disable_cycle_count == 0 {
+            regular_game_enable.enabled = true;
+        }
+    }
+}
+
+fn state_cleanup(mut global_turn_counter: ResMut<GlobalTurnCounter>) {
+    global_turn_counter.reset();
+}
+
+fn game_level_transition(
+    mut state: ResMut<State<crate::CoreState>>,
+    mut global_level_counter: ResMut<GlobalLevelCounter>,
+) {
+    info!("Game Level Transition!");
+    global_level_counter.increment();
+    state.set(crate::CoreState::GameLevel).unwrap();
 }
 
 fn global_turn_counter_system(
@@ -94,25 +144,115 @@ fn global_turn_counter_system(
     for event in game_event_reader.iter() {
         match event {
             GameEvent::PhaseComplete(phase) => {
-                global_turn_counter.step(phase);
+                global_turn_counter.step(&phase);
                 info!("New Turn: {:?}", global_turn_counter);
             }
-            GameEvent::PlayerDied | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
+            GameEvent::PlayerDied
+            | GameEvent::PlayerHooked
+            | GameEvent::HookCompleted
+            | GameEvent::PlayerEnteredVortex
+            | GameEvent::VortexCompleted => (),
         }
     }
+}
+
+fn set_state_handle_error(state: &mut State<crate::CoreState>, new_state: crate::CoreState) {
+    let result = state.set(new_state);
+    if let Err(e) = result {
+        warn!("Error setting state, not considering it a problem: {:?}", e);
+    }
+}
+
+///
+fn end_of_run(
+    state: &mut State<crate::CoreState>,
+    died: bool,
+    global_level_counter: &mut GlobalLevelCounter,
+    snail_shells_collected_this_run: &mut SnailsCollectedThisRun,
+    loaded_profile: &mut LoadedUserProfile,
+) {
+    global_level_counter.reset();
+
+    if !died {
+        //Only get to keep eggs if didn't die
+        loaded_profile.user_profile.snail_shells += snail_shells_collected_this_run.0
+    }
+    snail_shells_collected_this_run.0 = 0;
+    set_state_handle_error(state, crate::CoreState::GameHub);
 }
 
 fn end_of_level_event_system(
     mut state: ResMut<State<crate::CoreState>>,
     mut game_event_reader: EventReader<GameEvent>,
+    mut global_level_counter: ResMut<GlobalLevelCounter>,
+    mut snails_collected_this_run: ResMut<SnailsCollectedThisRun>,
+    mut loaded_profile: ResMut<LoadedUserProfile>,
 ) {
     for event in game_event_reader.iter() {
         match event {
-            GameEvent::EndOfLevel => {
-                state.set(crate::CoreState::MainMenu).unwrap();
+            GameEvent::HookCompleted => end_of_run(
+                &mut state,
+                false,
+                &mut global_level_counter,
+                &mut snails_collected_this_run,
+                &mut loaded_profile,
+            ),
+            GameEvent::PlayerDied => end_of_run(
+                &mut state,
+                true,
+                &mut global_level_counter,
+                &mut snails_collected_this_run,
+                &mut loaded_profile,
+            ),
+            GameEvent::VortexCompleted => {
+                set_state_handle_error(&mut state, crate::CoreState::GameLevelTransition);
             }
-            GameEvent::PlayerHooked | GameEvent::PlayerDied | GameEvent::PhaseComplete(_) => (),
+            GameEvent::PlayerHooked
+            | GameEvent::PhaseComplete(_)
+            | GameEvent::PlayerEnteredVortex => (),
         }
+    }
+}
+fn vortex_spawner_system(
+    mut commands: Commands,
+    image_store: Res<ImageAssetStore>,
+    cell_map: ResMut<CellMap<i32>>,
+    player_query: Query<&TilePos, With<Player>>,
+    enemy_query: Query<Entity, With<Enemy>>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    existing_vortex_query: Query<Entity, With<EndGameVortex>>,
+) {
+    let no_vortex_exists = existing_vortex_query.is_empty();
+    let ready_to_spawn = {
+        let enemy_count = enemy_query.iter().count();
+        let turn_past_threshold = global_turn_counter.turn_count > 34;
+        let not_too_many_enemies = enemy_count < 4;
+
+        // Late spawn is dependent on being many turns in and killed *some* enemies
+        let can_late_spawn = (turn_past_threshold || not_too_many_enemies);
+
+        // Early spawn is if all enemies are killed. Turn count stops this accidentally triggering
+        // before enemies spawn at start
+        let can_early_spawn = enemy_count == 0 && global_turn_counter.turn_count > 2;
+        can_late_spawn || can_early_spawn
+    };
+    if ready_to_spawn && no_vortex_exists {
+        info!(
+            "Spawning phase vortex! Turn: {}",
+            global_turn_counter.turn_count
+        );
+        let player_pos = player_query.single().as_i32s();
+        let new_cell_map = cell_map.recalculate(player_pos);
+        let spawn_pos = {
+            let (x, y) = new_cell_map
+                .distribute_points_by_cost(1, None)
+                .first()
+                .unwrap()
+                .to_owned();
+            TilePos(x as u32, y as u32)
+        };
+        super::end_game::spawn_vortex(&mut commands, spawn_pos, &image_store);
+        // TODO: Trigger sound
     }
 }
 
@@ -121,22 +261,25 @@ fn end_of_game_watcher_system(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut input_event_reader: EventReader<InputEvent>,
     asset_server: Res<AssetServer>,
     cell_map: ResMut<CellMap<i32>>,
     player_query: Query<&TilePos, With<Player>>,
     enemy_query: Query<Entity, With<Enemy>>,
     global_turn_counter: Res<GlobalTurnCounter>,
-    mut already_triggered: Local<bool>,
+    hook_query: Query<Entity, With<EndGameHook>>,
 ) {
+    let no_hook_exists = hook_query.is_empty();
     let end_of_game = {
-        let turn_past_threshold = global_turn_counter.turn_count > 34;
-        let not_too_many_enemies = {
-            let enemy_count = enemy_query.iter().count();
-            enemy_count < 4
-        };
-        turn_past_threshold && not_too_many_enemies && !(*already_triggered)
+        let mut hook_input = false;
+        for event in input_event_reader.iter() {
+            if let InputEvent::Hook = event {
+                hook_input = true;
+            }
+        }
+        hook_input
     };
-    if end_of_game {
+    if end_of_game && no_hook_exists {
         info!(
             "Spawning end of game hook! Turn: {}",
             global_turn_counter.turn_count
@@ -151,7 +294,7 @@ fn end_of_game_watcher_system(
                 .to_owned();
             TilePos(x as u32, y as u32)
         };
-        super::end_game::spawn(
+        super::end_game::spawn_hook(
             &mut meshes,
             &mut materials,
             &mut commands,
@@ -159,26 +302,8 @@ fn end_of_game_watcher_system(
             &asset_server,
             spawn_pos,
         );
-        *already_triggered = true
     }
 }
-
-fn player_death_system(
-    mut game_event_reader: EventReader<GameEvent>,
-    mut game_state: ResMut<State<crate::CoreState>>,
-) {
-    for event in game_event_reader.iter() {
-        match event {
-            GameEvent::PhaseComplete(_) | GameEvent::PlayerHooked | GameEvent::EndOfLevel => (),
-            GameEvent::PlayerDied => {
-                info!("Player died");
-                //TODO: Handle player death properly
-                game_state.set(crate::CoreState::MainMenu).unwrap();
-            }
-        }
-    }
-}
-
 fn waggle_system(
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Waggle)>,
@@ -190,6 +315,35 @@ fn waggle_system(
             println!("Waggle Finished");
             transform.rotation = Quat::from_rotation_z(0.0);
             commands.entity(entity).remove::<Waggle>();
+        }
+    }
+}
+
+fn rotate_system(time: Res<Time>, mut query: Query<(&mut Transform, &mut Rotating)>) {
+    for (mut transform, mut rotating) in query.iter_mut() {
+        rotating.update(&mut transform.rotation, &time.delta());
+    }
+}
+
+fn shrinking_system(time: Res<Time>, mut query: Query<(&mut Transform, &Shrinking)>) {
+    for (mut transform, shrinking) in query.iter_mut() {
+        let new_scale = transform.scale - (shrinking.factor * time.delta_seconds());
+        transform.scale = new_scale.clamp(Vec3::ZERO, Vec3::ONE);
+    }
+}
+
+fn player_death_animation_system(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Transform, &mut PlayerDeathAnimation)>,
+    mut event_writer: EventWriter<GameEvent>,
+) {
+    for (entity, mut transform, mut player_death_animation) in query.iter_mut() {
+        let finished = player_death_animation.update(&mut transform, &time.delta());
+        println!("PlayerDeathAnim: {:?}", player_death_animation);
+        if finished {
+            commands.entity(entity).remove::<PlayerDeathAnimation>();
+            event_writer.send(GameEvent::PlayerDied);
         }
     }
 }
@@ -325,40 +479,60 @@ fn mouse_click_system(
     }
 }
 
-fn input_handle_system(input: Res<Input<KeyCode>>, mut input_events: EventWriter<InputEvent>) {
-    let new_direction = {
-        if input.just_pressed(KeyCode::A) {
-            Some(MapDirection::Left)
-        } else if input.just_pressed(KeyCode::D) {
-            Some(MapDirection::Right)
-        } else if input.just_pressed(KeyCode::W) {
-            Some(MapDirection::Up)
-        } else if input.just_pressed(KeyCode::S) {
-            Some(MapDirection::Down)
-        } else {
-            None
-        }
-    };
-    let shift_held = input.pressed(KeyCode::LShift);
-    match (new_direction, shift_held) {
-        (Some(dir), false) => {
-            input_events.send(InputEvent::MoveDirection(dir));
-            return;
-        }
-        (Some(dir), true) => {
-            input_events.send(InputEvent::TurnDirection(dir));
-            return;
-        }
-        (None, _) => (),
-    }
-
-    if input.just_pressed(KeyCode::Space) {
-        input_events.send(InputEvent::Wait);
+fn input_handle_system(
+    input: Res<Input<KeyCode>>,
+    mut input_events: EventWriter<InputEvent>,
+    regular_game_enable: Res<RegularGameEnable>,
+    mut app_state: ResMut<State<crate::CoreState>>,
+) {
+    if input.just_pressed(KeyCode::Escape) {
+        println!("Starting GameOverlay");
+        app_state.push(crate::CoreState::GameOverlay).unwrap();
         return;
     }
+    fn input_to_event(input: &Input<KeyCode>) -> Option<InputEvent> {
+        let new_direction = {
+            if input.just_pressed(KeyCode::A) {
+                Some(MapDirection::Left)
+            } else if input.just_pressed(KeyCode::D) {
+                Some(MapDirection::Right)
+            } else if input.just_pressed(KeyCode::W) {
+                Some(MapDirection::Up)
+            } else if input.just_pressed(KeyCode::S) {
+                Some(MapDirection::Down)
+            } else {
+                None
+            }
+        };
+        let shift_held = input.pressed(KeyCode::LShift);
+        match (new_direction, shift_held) {
+            (Some(dir), false) => {
+                return Some(InputEvent::MoveDirection(dir));
+            }
+            (Some(dir), true) => {
+                return Some(InputEvent::TurnDirection(dir));
+            }
+            (None, _) => (),
+        }
 
-    if input.just_pressed(KeyCode::Q) {
-        input_events.send(InputEvent::Power);
+        if input.just_pressed(KeyCode::Space) {
+            return Some(InputEvent::Wait);
+        }
+
+        if input.just_pressed(KeyCode::Q) {
+            return Some(InputEvent::Power);
+        }
+
+        if input.just_pressed(KeyCode::R) {
+            return Some(InputEvent::Hook);
+        }
+
+        None
+    }
+    if let Some(event) = input_to_event(&input) {
+        if regular_game_enable.enabled {
+            input_events.send(event);
+        }
     }
 }
 
@@ -389,10 +563,22 @@ fn gamepad_input_handle_system(
     }
 }
 
-fn input_event_debug_system(mut input_events: EventReader<InputEvent>) {
+fn input_event_debug_system(
+    mut input_events: EventReader<InputEvent>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    mut local_turn_counter: Local<TurnCounter>,
+) {
     for event in input_events.iter() {
         let event: &InputEvent = event;
         info!("Input Event: {:?}", event);
+        if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::PlayerMovement) {
+            info!("Can take turn");
+        } else {
+            info!(
+                "Can't take turn. {:?}, {:?})",
+                global_turn_counter, local_turn_counter
+            );
+        }
     }
 }
 
@@ -445,6 +631,7 @@ fn health_watcher_system(
     mut commands: Commands,
     mut known_player_hp: Local<Option<usize>>,
     mut game_event_writer: EventWriter<GameEvent>,
+    mut regular_game_enable: ResMut<RegularGameEnable>,
 ) {
     for (entity, health) in enemy_health.iter() {
         if health.hp == 0 {
@@ -459,14 +646,23 @@ fn health_watcher_system(
         // handle this if it becomes a problem
         match *known_player_hp {
             Some(known_hp) if known_hp != health.hp => {
-                info_event_writer.send(InfoEvent::PlayerHurt);
+                if regular_game_enable.enabled {
+                    info_event_writer.send(InfoEvent::PlayerHurt);
+                } else {
+                    info!("Not emitting PlayerHurt event as regular game not enabled")
+                }
             }
             _ => (),
         }
         *known_player_hp = Some(health.hp);
         if health.hp == 0 {
-            game_event_writer.send(GameEvent::PlayerDied);
             println!("Player! died {:?}", entity);
+            let delay = Duration::from_millis(500);
+            commands
+                .entity(entity)
+                .insert(PlayerDeathAnimation::new(delay, 100f32));
+            info_event_writer.send(InfoEvent::PlayerKilled);
+            regular_game_enable.enabled = false;
         }
     }
 }
@@ -476,6 +672,7 @@ fn sfx_system(
     audio: Res<Audio>,
     assets: Res<AssetServer>,
 ) {
+    // TODO: Move audio to asset system
     for event in info_event_reader.iter() {
         match event {
             InfoEvent::PlayerHurt => {
@@ -491,6 +688,16 @@ fn sfx_system(
             InfoEvent::PlayerMoved => {
                 debug!("Playing Audio for Player Moved");
                 let sound = assets.load("audio/fish_slap.ogg");
+                audio.play(sound);
+            }
+            InfoEvent::PlayerKilled => {
+                debug!("Playing Audio for Player Died");
+                let sound = assets.load("audio/398068__happyparakeet__pixel-death.wav");
+                audio.play(sound);
+            }
+            InfoEvent::PlayerPickedUpSnail => {
+                debug!("Playing Audio for Player Picked Up Snail");
+                let sound = assets.load("audio/608431__plasterbrain__shiny-coin-pickup.flac");
                 audio.play(sound);
             }
         }
@@ -512,7 +719,7 @@ fn enemy_system(
     tile_type_query: Query<&HasTileType>,
 ) {
     let player_position = *move_query.p0().get_single().unwrap();
-    if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::EnemyMovement) {
+    if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::EnemyMovement) {
         let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
         let mut moved_to = Vec::new();
@@ -547,11 +754,16 @@ fn player_movement_watcher(
     player_position_query: Query<&TilePos, (With<Player>, Changed<TilePos>)>,
     mut known_player_position: Local<Option<TilePos>>,
     mut info_event_writer: EventWriter<InfoEvent>,
+    regular_game_enable: Res<RegularGameEnable>,
 ) {
     if let Ok(player_tilepos) = player_position_query.get_single() {
         match *known_player_position {
             Some(pos) if pos != *player_tilepos => {
-                info_event_writer.send(InfoEvent::PlayerMoved);
+                if regular_game_enable.enabled {
+                    info_event_writer.send(InfoEvent::PlayerMoved);
+                } else {
+                    info!("Not emitting PlayerMoved as regular game not enabled");
+                }
             }
             _ => (),
         }
@@ -580,7 +792,7 @@ fn player_movement_system(
         match event {
             InputEvent::MoveDirection(direction) => {
                 let can_take_turn = global_turn_counter
-                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                    .can_take_turn(&mut local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
                     let (player_entity, current_pos) = {
                         let q = move_query.p0();
@@ -608,11 +820,16 @@ fn player_movement_system(
 
                     local_turn_counter.incr();
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
+                } else {
+                    info!(
+                        "Can't take turn: {:?} {:?}",
+                        global_turn_counter, local_turn_counter
+                    );
                 }
             }
             InputEvent::TurnDirection(dir) => {
                 let can_take_turn = global_turn_counter
-                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                    .can_take_turn(&mut local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
                     info!("Player Turning: {:?}", dir);
                     move_query.p3().single_mut().0 = dir.clone();
@@ -622,7 +839,7 @@ fn player_movement_system(
             }
             InputEvent::Wait => {
                 let can_take_turn = global_turn_counter
-                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                    .can_take_turn(&mut local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
                     info!("Player Waiting");
                     local_turn_counter.incr();
@@ -631,7 +848,7 @@ fn player_movement_system(
             }
             InputEvent::Power => {
                 let can_take_turn = global_turn_counter
-                    .can_take_turn(&local_turn_counter, GamePhase::PlayerMovement);
+                    .can_take_turn(&mut local_turn_counter, GamePhase::PlayerMovement);
                 if can_take_turn {
                     let mut power_charges = power_query.single_mut();
                     if power_charges.charges > 0 {
@@ -641,6 +858,9 @@ fn player_movement_system(
                         power_charges.use_charge();
                     }
                 }
+            }
+            InputEvent::Hook => {
+                //Do nothing here, handled in hook spawner system
             }
         }
     }
@@ -752,12 +972,23 @@ fn debug_print_input_system(
         let mut charges = player_charges_q.single_mut();
         charges.charges += 3;
     }
+
+    if input.just_pressed(KeyCode::Key8) {
+        info!("Spawning Vortex");
+        let spawn_pos = {
+            let q = query.p2();
+            let (TilePos(x, y), _trans) = q.single();
+            TilePos(*x + 1, *y)
+        };
+        super::end_game::spawn_vortex(&mut commands, spawn_pos, &image_assets)
+    }
 }
 fn setup(
     mut commands: Commands,
     image_assets: Res<ImageAssetStore>,
     texture_atlas_store: Res<TextureAtlasStore>,
     map_query: MapQuery,
+    global_level_counter: Res<GlobalLevelCounter>,
 ) {
     let border_size = 20usize;
     let cell_map: CellMap<i32> = {
@@ -782,21 +1013,46 @@ fn setup(
         TilePos(start_point.0 as u32, start_point.1 as u32)
     };
     commands
-        .spawn_bundle(TileResidentBundle::new(3, start_point, atlas_handle, 1))
+        .spawn_bundle(TileResidentBundle::new(
+            3,
+            start_point.clone(),
+            atlas_handle,
+            1,
+        ))
         .insert(CameraFollow {
             x_threshold: 300.0,
             y_threshold: 200.0,
         })
         .insert(PowerCharges::new(3))
         .insert(Player);
+    let mut spawned_positions = Vec::new();
     let shark_positions =
         super::enemy::add_sharks(&mut commands, &texture_atlas_store, 7, &cell_map, None);
-    super::enemy::add_crabs(
+    spawned_positions.extend_from_slice(&shark_positions[..]);
+    let crab_positions = super::enemy::add_crabs(
         &mut commands,
         &texture_atlas_store,
         3,
         &cell_map,
-        Some(&shark_positions),
+        Some(&spawned_positions),
     );
+    spawned_positions.extend_from_slice(&crab_positions[..]);
+    let (snail_num, snail_positions) = super::snails::choose_number_of_and_spawn_snails(
+        &mut commands,
+        &texture_atlas_store,
+        &cell_map,
+        Some(&spawned_positions),
+    );
+    info!("Spawned {}", snail_num);
+    spawned_positions.extend_from_slice(&crab_positions[..]);
     commands.insert_resource(cell_map);
+    let regular_game_enable = RegularGameEnable {
+        enabled: false,
+        disable_cycle_count: 2,
+    };
+    commands.insert_resource(regular_game_enable);
+    info!(
+        "Completed Setup for level :{}",
+        global_level_counter.level()
+    );
 }

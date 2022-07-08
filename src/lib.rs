@@ -23,6 +23,8 @@ enum CoreState {
     Loading,
     MainMenu,
     GameLevel,
+    GameLevelTransition,
+    GameOverlay,
     GameHub,
     GameStore,
     LoadMenu,
@@ -36,11 +38,13 @@ pub fn main() {
         .add_plugin(TilemapPlugin)
         .add_plugin(AudioPlugin)
         .add_plugin(crate::game::Plugin)
+        .add_plugin(crate::game::GameOverlayPlugin)
         .add_plugin(crate::main_menu::Plugin)
         .add_plugin(crate::asset_handling::Plugin)
         .add_plugin(crate::game_menus::HubMenuPlugin)
         .add_plugin(crate::game_menus::StoreMenuPlugin)
         .add_plugin(crate::game_menus::LoadMenuPlugin)
+        .add_plugin(crate::game_menus::NewGameMenuPlugin)
         .add_state(initial_state)
         .add_system(setup_window_title)
         .run();

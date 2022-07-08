@@ -22,11 +22,12 @@ pub enum StoreButton {
 }
 #[derive(Component)]
 pub enum LoadButton {
-    Load,
+    LoadOrNew,
     Back,
 }
 #[derive(Component)]
 pub enum NewGameButton {
+    NewGame,
     Back,
 }
 
@@ -49,7 +50,7 @@ impl ButtonComponent for StoreButton {
 impl ButtonComponent for LoadButton {
     fn to_text(&self) -> &'static str {
         match self {
-            Self::Load => "Load",
+            Self::LoadOrNew => "Load",
             Self::Back => "Back",
         }
     }
@@ -58,6 +59,7 @@ impl ButtonComponent for NewGameButton {
     fn to_text(&self) -> &'static str {
         match self {
             Self::Back => "Back",
+            Self::NewGame => "New Game",
         }
     }
 }

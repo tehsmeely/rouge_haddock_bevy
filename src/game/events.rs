@@ -7,6 +7,7 @@ pub enum InputEvent {
     TurnDirection(MapDirection),
     Wait,
     Power,
+    Hook,
 }
 
 #[derive(Debug)]
@@ -19,7 +20,9 @@ pub enum GameEvent {
     PhaseComplete(GamePhase),
     PlayerDied,
     PlayerHooked,
-    EndOfLevel,
+    HookCompleted,
+    PlayerEnteredVortex,
+    VortexCompleted,
 }
 
 #[derive(Debug)]
@@ -28,4 +31,6 @@ pub enum InfoEvent {
     EnemyKilled,
     PlayerHurt,
     PlayerMoved,
+    PlayerKilled,
+    PlayerPickedUpSnail,
 }

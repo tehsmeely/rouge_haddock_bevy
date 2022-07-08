@@ -59,7 +59,7 @@ pub fn projectile_watcher_system(
     // the stage has spawned the projectile - because spawns from [Commands] happen in a later stage
     // waiting to see no projectiles twice will cause one frame cycle for cases where we don't fire a projectile
     // If this is a problem, this system would be run in a stage AFTER the spawning happens
-    if global_turn_counter.can_take_turn(&local_turn_counter, GamePhase::PlayerPowerEffect) {
+    if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::PlayerPowerEffect) {
         if projectile_query.is_empty() {
             if *frame_delay > 1 {
                 game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerPowerEffect));

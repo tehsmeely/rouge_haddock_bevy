@@ -1,6 +1,8 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
 
+use crate::asset_handling::asset::ImageAsset;
+use crate::asset_handling::ImageAssetStore;
 use crate::main_menu::components::{MenuButton, MenuOnly};
 use crate::menu_core::menu_core;
 use crate::menu_core::menu_core::NORMAL_BUTTON;
@@ -39,7 +41,11 @@ fn button_click_system(
     }
 }
 
-fn menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn menu_setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    image_assets: Res<ImageAssetStore>,
+) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
     // ui camera
     commands
@@ -55,6 +61,7 @@ fn menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
             },
+            image: UiImage(image_assets.get(&ImageAsset::Background)),
             ..Default::default()
         })
         .insert(MenuOnly {})

@@ -4,9 +4,9 @@ use bevy::prelude::*;
 use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::game_menus::components::{HubButton, HubMenuOnly};
-use crate::menu_core::menu_core;
 use crate::menu_core::menu_core::rect_consts::CENTRED;
 use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_text_custom};
+use crate::menu_core::{menu_core, nodes};
 use crate::profiles::profiles::{LoadedUserProfile, UserProfile};
 use bevy::reflect::erased_serde::private::serde::Serialize;
 
@@ -53,13 +53,22 @@ fn menu_setup(
     loaded_profile: Res<LoadedUserProfile>,
 ) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
+
+    // Always save on loading in
+    loaded_profile.save();
     // ui camera
     commands
         .spawn_bundle(UiCameraBundle::default())
         .insert(HubMenuOnly);
 
     commands
-        .spawn_bundle(crate::menu_core::nodes::full_width())
+        .spawn_bundle(nodes::general::new(nodes::general::defaults::full(
+            FlexDirection::Row,
+            Some(vec![nodes::general::Property::Image(
+                image_assets.get(&ImageAsset::Background),
+            )]),
+        )))
+        //.spawn_bundle(crate::menu_core::nodes::horizontal::full())
         .insert(HubMenuOnly {})
         .with_children(|parent| {
             left_bar_stats_bundle(
@@ -78,11 +87,10 @@ fn left_bar_stats_bundle(
     image_assets: &Res<ImageAssetStore>,
     user_profile: &UserProfile,
 ) {
-    let image = image_assets.get(&ImageAsset::HaddockSprite);
+    let image = image_assets.get(&user_profile.haddock_variant.to_image_asset());
     parent
-        .spawn_bundle(crate::menu_core::nodes::half_width())
+        .spawn_bundle(crate::menu_core::nodes::horizontal::half())
         .with_children(|parent| {
-            // TODO: Load this data from state - and prepare to update it ofc
             standard_centred_text_custom(parent, user_profile.name.clone(), font.clone(), 60.0);
             parent.spawn_bundle(ImageBundle {
                 style: Style {
@@ -93,7 +101,11 @@ fn left_bar_stats_bundle(
                 image: UiImage(image),
                 ..Default::default()
             });
-            standard_centred_text(parent, format!("Eggs: {}", user_profile.eggs), font.clone());
+            standard_centred_text(
+                parent,
+                format!("Shells: {}", user_profile.snail_shells),
+                font.clone(),
+            );
             standard_centred_text(
                 parent,
                 format!("Level: {}", user_profile.level),
@@ -104,7 +116,7 @@ fn left_bar_stats_bundle(
 
 fn right_bar_button_bundle(parent: &mut ChildBuilder, font: Handle<Font>) {
     parent
-        .spawn_bundle(crate::menu_core::nodes::half_width())
+        .spawn_bundle(crate::menu_core::nodes::horizontal::half())
         .with_children(|parent| {
             menu_core::make_button(HubButton::Quit, parent, font.clone());
             menu_core::make_button(HubButton::Store, parent, font.clone());

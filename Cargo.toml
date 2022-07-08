@@ -47,4 +47,4 @@ features = [
 
 [dependencies.bevy_kira_audio]
 version = "0.9.0"
-features = ["wav"]
+features = ["wav", "flac"]

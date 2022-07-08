@@ -48,11 +48,11 @@ pub fn add_crabs(
     num_crabs: usize,
     cell_map: &CellMap<i32>,
     exclude_positions: Option<&Vec<(i32, i32)>>,
-) {
+) -> Vec<(i32, i32)> {
     let atlas_handle = atlases.get(&TextureAtlasAsset::CrabSpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_crabs, exclude_positions);
-    for (x, y) in spawn_positions.into_iter() {
-        let tile_pos = TilePos(x as u32, y as u32);
+    for (x, y) in spawn_positions.iter() {
+        let tile_pos = TilePos(*x as u32, *y as u32);
         commands
             .spawn_bundle(SimpleTileResidentBundle::new(
                 1,
@@ -65,4 +65,5 @@ pub fn add_crabs(
             .insert(MoveWeighting::updown_leftright(0.1, 1.0))
             .insert(Crab {});
     }
+    spawn_positions
 }

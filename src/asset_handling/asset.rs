@@ -9,10 +9,14 @@ pub trait AssetClass {
 pub enum ImageAsset {
     HaddockSpritesheet,
     HaddockSprite,
+    WhaleSprite,
     SharkSpritesheet,
     CrabSpritesheet,
     ProjectileSpritesheet,
     TileMapSpritesheet,
+    SnailSpritesheet,
+    VortexSprite,
+    Background,
 }
 
 impl ImageAsset {
@@ -32,10 +36,14 @@ impl AssetClass for ImageAsset {
         match self {
             Self::HaddockSpritesheet => "sprites/haddock_spritesheet.png",
             Self::HaddockSprite => "sprites/haddock.png",
+            Self::WhaleSprite => "sprites/whale.png",
             Self::SharkSpritesheet => "sprites/shark_spritesheet.png",
             Self::CrabSpritesheet => "sprites/crab_spritesheet.png",
             Self::ProjectileSpritesheet => "sprites/projectile_spritesheet.png",
             Self::TileMapSpritesheet => "sprites/tilemap_spritesheet.png",
+            Self::SnailSpritesheet => "sprites/prey_snail_spritesheet.png",
+            Self::VortexSprite => "sprites/vortex.png",
+            Self::Background => "sprites/back.png",
         }
     }
 }
@@ -46,6 +54,7 @@ pub enum TextureAtlasAsset {
     SharkSpritesheet,
     CrabSpritesheet,
     ProjectileSpritesheet,
+    SnailSpritesheet,
 }
 
 impl TextureAtlasAsset {
@@ -55,14 +64,16 @@ impl TextureAtlasAsset {
             Self::SharkSpritesheet => ImageAsset::SharkSpritesheet,
             Self::CrabSpritesheet => ImageAsset::CrabSpritesheet,
             Self::ProjectileSpritesheet => ImageAsset::ProjectileSpritesheet,
+            Self::SnailSpritesheet => ImageAsset::SnailSpritesheet,
         }
     }
 
     pub fn frame_size(&self) -> Vec2 {
         let (x, y) = match self {
-            Self::HaddockSpritesheet | Self::SharkSpritesheet | Self::CrabSpritesheet => {
-                (64.0, 64.0)
-            }
+            Self::HaddockSpritesheet
+            | Self::SharkSpritesheet
+            | Self::CrabSpritesheet
+            | Self::SnailSpritesheet => (64.0, 64.0),
             Self::ProjectileSpritesheet => (20.0, 20.0),
         };
         Vec2::new(x, y)
@@ -71,13 +82,16 @@ impl TextureAtlasAsset {
     pub fn columns(&self) -> usize {
         match self {
             Self::HaddockSpritesheet => 5,
-            Self::SharkSpritesheet | Self::CrabSpritesheet | Self::ProjectileSpritesheet => 4,
+            Self::SharkSpritesheet
+            | Self::CrabSpritesheet
+            | Self::ProjectileSpritesheet
+            | Self::SnailSpritesheet => 4,
         }
     }
     pub fn rows(&self) -> usize {
         match self {
             Self::HaddockSpritesheet | Self::SharkSpritesheet | Self::ProjectileSpritesheet => 4,
-            Self::CrabSpritesheet => 1,
+            Self::CrabSpritesheet | Self::SnailSpritesheet => 1,
         }
     }
 }

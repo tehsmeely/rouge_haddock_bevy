@@ -1,5 +1,8 @@
+use crate::asset_handling::asset::ImageAsset;
+use crate::asset_handling::ImageAssetStore;
 use crate::game::components::{
-    AnimationTimer, CameraFollow, GameOnly, MovementAnimate, Player, SimpleSpriteAnimation,
+    AnimationTimer, CameraFollow, GameOnly, MovementAnimate, Player, Rotating, Shrinking,
+    SimpleSpriteAnimation,
 };
 use crate::game::events::GameEvent;
 use crate::game::tilemap::TilePosExt;
@@ -8,6 +11,10 @@ use bevy::sprite::MaterialMesh2dBundle;
 use bevy_ecs_tilemap::TilePos;
 use std::time::Duration;
 
+#[derive(Default, Component)]
+pub struct InVortex;
+#[derive(Default, Component)]
+pub struct EndGameVortex;
 #[derive(Default, Component)]
 pub struct EndGameHook;
 #[derive(Default, Component)]
@@ -19,6 +26,8 @@ pub struct HookedAnimation {
     speed: f32,
 }
 
+const DEFAULT_VORTEX_ROTATION_SPEED: f32 = 2f32;
+
 impl HookedAnimation {
     fn new(duration_s: f32, speed: f32) -> Self {
         Self {
@@ -29,6 +38,18 @@ impl HookedAnimation {
     fn tick(&mut self, delta: Duration) -> bool {
         self.timer.tick(delta);
         self.timer.finished()
+    }
+}
+
+/// Watches for shrinking player (in vortex) and emits event when hits zero size
+pub fn vortex_animation_system(
+    mut query: Query<&Transform, (Changed<Transform>, With<Player>, With<InVortex>)>,
+    mut game_event_writer: EventWriter<GameEvent>,
+) {
+    for transform in query.iter() {
+        if transform.scale == Vec3::ZERO {
+            game_event_writer.send(GameEvent::VortexCompleted);
+        }
     }
 }
 
@@ -48,7 +69,7 @@ pub fn hooked_animation_system(
         if finished {
             commands.entity(entity).remove::<HookedAnimation>();
             if maybe_player.is_some() {
-                game_event_writer.send(GameEvent::EndOfLevel);
+                game_event_writer.send(GameEvent::HookCompleted);
             }
         } else {
             let distance = {
@@ -63,15 +84,12 @@ pub fn hooked_animation_system(
 pub fn end_game_hook_system(
     hook_query: Query<(Entity, &TilePos), With<EndGameHook>>,
     hook_line_query: Query<Entity, With<EndGameHookLine>>,
-    player_query: Query<(Entity, &TilePos), With<Player>>,
+    player_query: Query<(Entity, &TilePos), (With<Player>, Changed<TilePos>)>,
     mut game_event_writer: EventWriter<GameEvent>,
-    mut already_triggered: Local<bool>,
     mut commands: Commands,
 ) {
     if let Ok((hook_entity, hook_tilepos)) = hook_query.get_single() {
-        if !*already_triggered {
-            let (player_entity, player_tilepos) = player_query.single();
-
+        if let Ok((player_entity, player_tilepos)) = player_query.get_single() {
             if hook_tilepos.eq(player_tilepos) {
                 game_event_writer.send(GameEvent::PlayerHooked);
                 println!("Player hook hooked");
@@ -90,14 +108,57 @@ pub fn end_game_hook_system(
                     .entity(hook_entity)
                     .insert(hooked_animation.clone());
                 commands.entity(hook_line_entity).insert(hooked_animation);
-
-                *already_triggered = true;
             }
         }
     }
 }
+pub fn end_game_vortex_system(
+    vortex_query: Query<(Entity, &TilePos), With<EndGameVortex>>,
+    player_query: Query<(Entity, &TilePos), (With<Player>, Changed<TilePos>)>,
+    mut game_event_writer: EventWriter<GameEvent>,
+    mut commands: Commands,
+) {
+    for (_vortex_entity, hook_tilepos) in vortex_query.iter() {
+        if let Ok((player_entity, player_tilepos)) = player_query.get_single() {
+            if hook_tilepos.eq(player_tilepos) {
+                game_event_writer.send(GameEvent::PlayerEnteredVortex);
+                println!("Player entered vortex");
 
-pub fn spawn(
+                let rotating = Rotating::new(DEFAULT_VORTEX_ROTATION_SPEED * 2.0);
+                let shrinking = Shrinking { factor: 1.0 };
+                commands
+                    .entity(player_entity)
+                    .remove::<CameraFollow>()
+                    .insert(InVortex)
+                    .insert(shrinking)
+                    .insert(rotating);
+            }
+        }
+    }
+}
+pub fn spawn_vortex(
+    commands: &mut Commands,
+    spawn_pos: TilePos,
+    image_store: &Res<ImageAssetStore>,
+) {
+    let start_pos = spawn_pos.to_world_pos(2.0);
+    let transform = Transform::from_translation(start_pos);
+    println!("Vortex Spawned");
+
+    let rotating = Rotating::new(2f32);
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: image_store.get(&ImageAsset::VortexSprite),
+            ..Default::default()
+        })
+        .insert(GameOnly)
+        .insert(EndGameVortex)
+        .insert(transform)
+        .insert(rotating)
+        .insert(spawn_pos);
+}
+
+pub fn spawn_hook(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     commands: &mut Commands,
@@ -127,6 +188,7 @@ pub fn spawn(
             material,
             ..Default::default()
         })
+        .insert(GameOnly)
         .insert(EndGameHookLine);
     let texture_handle = asset_server.load("sprites/hook_spritesheet.png");
     let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 4, 1);
