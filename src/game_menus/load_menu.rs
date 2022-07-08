@@ -16,6 +16,7 @@ use crate::menu_core::menu_core::{make_button, ButtonComponent};
 use crate::profiles::profiles::{
     load_profiles_blocking, LoadedUserProfile, LoadingProfileSlotNum, ProfileSlot, UserProfile,
 };
+use bevy::prelude::{FlexDirection, JustifyContent};
 use num::clamp;
 
 pub struct MenuPlugin;
@@ -117,7 +118,16 @@ fn menu_setup(
         .insert(LoadMenuOnly {})
         .with_children(|parent| {
             parent
-                .spawn_bundle(crate::menu_core::nodes::vertical::half())
+                .spawn_bundle({
+                    use crate::menu_core::nodes::general::*;
+                    new(vec![
+                        Property::Direction(FlexDirection::Row),
+                        Property::Height(Val::Percent(20f32)),
+                        Property::Width(Val::Percent(100f32)),
+                        Property::Margin(Val::Percent(0f32)),
+                        Property::Justify(JustifyContent::Center),
+                    ])
+                })
                 .with_children(|parent| {
                     make_button(LoadButton::Back, parent, font.clone());
                     let (_button, text) = make_button(LoadButton::LoadOrNew, parent, font.clone());

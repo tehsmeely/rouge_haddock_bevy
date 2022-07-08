@@ -204,7 +204,7 @@ pub mod vertical {
                 size: Size::new(Val::Percent(100.0), Val::Percent(50.0)),
                 margin: Rect::all(Val::Auto),
                 justify_content: JustifyContent::FlexStart,
-                flex_direction: FlexDirection::Row,
+                flex_direction: FlexDirection::Column,
                 ..Default::default()
             },
             color: UiColor(debug_get_colour()),
