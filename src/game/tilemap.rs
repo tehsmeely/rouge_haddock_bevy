@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
+use log::info;
 use num::Integer;
 
 use crate::asset_handling::asset::ImageAsset;
@@ -78,8 +79,12 @@ pub fn init_tilemap(
     mut map_query: MapQuery,
     cell_map: &CellMap<i32>,
     border_size: usize,
+    images: &Assets<Image>,
 ) {
     let texture_handle = image_assets.get(&ImageAsset::TileMapSpritesheet);
+
+    info!("Tilemap Init!");
+    info!("Texture: {:?}", images.get(texture_handle.clone()));
 
     // Create map entity and component:
     let map_entity = commands.spawn().id();

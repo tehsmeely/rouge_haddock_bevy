@@ -421,7 +421,9 @@ impl TileType {
             Self::WATER => " ",
         }
     }
+}
 
+impl TileType {
     pub fn to_raw_tile(&self) -> Tile {
         match self {
             Self::WATER => Tile {

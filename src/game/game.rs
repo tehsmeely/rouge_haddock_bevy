@@ -989,6 +989,7 @@ fn setup(
     texture_atlas_store: Res<TextureAtlasStore>,
     map_query: MapQuery,
     global_level_counter: Res<GlobalLevelCounter>,
+    images: Res<Assets<Image>>,
 ) {
     let border_size = 20usize;
     let cell_map: CellMap<i32> = {
@@ -1002,6 +1003,7 @@ fn setup(
         map_query,
         &cell_map,
         border_size,
+        &images,
     );
     commands
         .spawn_bundle(OrthographicCameraBundle::new_2d())

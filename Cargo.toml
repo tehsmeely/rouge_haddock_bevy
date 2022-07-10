@@ -14,7 +14,8 @@ path = "src/main.rs"
 
 [dependencies]
 # TODO: use bevy_ecs_tilemap = 0.6 when it's live on crates.io
-bevy_ecs_tilemap = { git = "https://github.com/StarArawn/bevy_ecs_tilemap" }
+# bevy_ecs_tilemap = { git = "https://github.com/StarArawn/bevy_ecs_tilemap" }
+bevy_ecs_tilemap = { version ="0.6.0", features = ["atlas"] }
 num = "0.4"
 log = "0.4.14"
 simple_logger = "2.1.0"
@@ -28,6 +29,13 @@ strum = "0.24.0"
 strum_macros = "0.24.0"
 ron = "0.7.0"
 serde = "1.0.136"
+
+#Below re-implement as wasm32 only later ...
+#[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "^0.3.53", features = ["Storage", "Window"]}
+wasm-bindgen = "0.2.81"
+js-sys = "0.3.58"
+####
 
 [dependencies.bevy]
 # Sadly compiling with "Dynamic" casuses a msvc "fatal error LNK1189: library limit of 65535 objects exceeded"
@@ -48,3 +56,6 @@ features = [
 [dependencies.bevy_kira_audio]
 version = "0.9.0"
 features = ["wav", "flac"]
+
+
+

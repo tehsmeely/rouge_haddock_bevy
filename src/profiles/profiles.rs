@@ -75,15 +75,8 @@ pub struct LoadedUserProfile {
 }
 
 impl LoadedUserProfile {
-    fn to_filename(&self) -> String {
-        filename_of_index(self.file_index)
-    }
-
     pub fn save(&self) {
-        let filename = self.to_filename();
-        let file = File::create(filename).unwrap();
-        let writer = BufWriter::new(file);
-        ron::ser::to_writer(writer, &self.user_profile).unwrap();
+        platform_fs::save(self.file_index, &self.user_profile);
     }
 
     pub fn new(user_profile: UserProfile, file_index: usize) -> Self {
@@ -100,33 +93,72 @@ pub enum ProfileSlot {
     Free(usize),
 }
 
+fn save_id_of_index(index: usize) -> String {
+    format!("save_{:02}.ron", index)
+}
+
 fn filename_of_index(index: usize) -> String {
-    format!("saves/save_{:02}.ron", index)
+    format!("saves/{}", save_id_of_index(index))
 }
 
 pub fn load_profiles_blocking() -> Vec<ProfileSlot> {
     let mut loaded_saves = Vec::new();
     for file_index in 0..MAX_SAVES {
-        let filename = filename_of_index(file_index);
-        let loaded_profile = if let Ok(file) = File::open(filename) {
-            let reader = BufReader::new(file);
-            if let Ok(user_profile) = ron::de::from_reader(reader) {
-                Some(LoadedUserProfile {
-                    user_profile,
-                    file_index,
-                })
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        if let Some(profile) = loaded_profile {
+        if let Some(profile) = platform_fs::maybe_load(file_index) {
             loaded_saves.push(ProfileSlot::Loaded(profile));
         } else {
             loaded_saves.push(ProfileSlot::Free(file_index));
         }
     }
     loaded_saves
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+mod platform_fs {
+    use crate::profiles::profiles::{filename_of_index, LoadedUserProfile, UserProfile};
+    use std::fs::File;
+    use std::io::{BufReader, BufWriter};
+
+    pub fn maybe_load(index: usize) -> Option<LoadedUserProfile> {
+        let filename = filename_of_index(index);
+        let file = File::open(filename).ok()?;
+        let reader = BufReader::new(file);
+        let user_profile = ron::de::from_reader(reader).ok()?;
+        Some(LoadedUserProfile {
+            user_profile,
+            file_index: index,
+        })
+    }
+
+    pub fn save(index: usize, user_profile: &UserProfile) {
+        let filename = filename_of_index(index);
+        let file = File::create(filename).unwrap();
+        let writer = BufWriter::new(file);
+        ron::ser::to_writer(writer, user_profile).unwrap();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+mod platform_fs {
+    use crate::profiles::profiles::{save_id_of_index, LoadedUserProfile, UserProfile};
+
+    pub fn maybe_load(index: usize) -> Option<LoadedUserProfile> {
+        let window: web_sys::Window = web_sys::window()?;
+        let local_storage: web_sys::Storage = window.local_storage().ok()??;
+        let save_id = save_id_of_index(index);
+        let profile_entry = local_storage.get_item(&save_id).ok()??;
+        let user_profile = ron::de::from_str(&profile_entry).ok()?;
+        Some(LoadedUserProfile {
+            user_profile,
+            file_index: index,
+        })
+    }
+
+    pub fn save(index: usize, user_profile: &UserProfile) {
+        let window: web_sys::Window = web_sys::window().unwrap();
+        let local_storage: web_sys::Storage = window.local_storage().unwrap().unwrap();
+        let save_id = save_id_of_index(index);
+        let user_profile_ron = ron::ser::to_string(user_profile).unwrap();
+        local_storage.set_item(&save_id, &user_profile_ron).unwrap();
+    }
 }

@@ -5,7 +5,6 @@ use log::info;
 
 use rand::prelude::SliceRandom;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::time::Instant;
 
 #[derive(Debug)]
 enum AbSelector {
@@ -220,7 +219,9 @@ impl Grid {
         let reachable_cells: HashSet<(i32, i32)> = distance_map.keys().cloned().collect();
         for i in 0..self.grid_size.0 {
             for j in 0..self.grid_size.1 {
-                if self.grid[pos_as_usize((i, j))].get(&self.current) == &TileType::WATER && !reachable_cells.contains(&(i, j)) {
+                if self.grid[pos_as_usize((i, j))].get(&self.current) == &TileType::WATER
+                    && !reachable_cells.contains(&(i, j))
+                {
                     self.grid[pos_as_usize((i, j))].set(&self.current, TileType::WALL);
                 }
             }
@@ -239,10 +240,7 @@ fn to_half_signed(i: isize) -> isize {
 
 pub fn get_cell_map(min_size: usize, max_tries: i32) -> CellMap<i32> {
     for _i in 0..max_tries {
-        let start = Instant::now();
         let map = run_single(min_size);
-        let duration = start.elapsed();
-        info!("Possibly invalid map generated in : {:?}", duration);
         if let Some(valid_map) = map {
             return valid_map;
         }
