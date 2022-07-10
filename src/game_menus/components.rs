@@ -18,6 +18,7 @@ pub enum HubButton {
 }
 #[derive(Component)]
 pub enum StoreButton {
+    LevelUp,
     Back,
 }
 #[derive(Component)]
@@ -44,6 +45,7 @@ impl ButtonComponent for StoreButton {
     fn to_text(&self) -> &'static str {
         match self {
             Self::Back => "Back",
+            Self::LevelUp => "Level Up",
         }
     }
 }

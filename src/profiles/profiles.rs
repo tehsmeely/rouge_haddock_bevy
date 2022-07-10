@@ -44,6 +44,27 @@ impl Default for UserProfile {
     }
 }
 
+impl UserProfile {
+    pub fn max_power_charges(&self) -> usize {
+        match self.level {
+            0..=4 => 3,
+            5..=9 => 4,
+            10..=14 => 5,
+            15..=20 => 6,
+            _ => 7,
+        }
+    }
+    pub fn max_health(&self) -> usize {
+        match self.level {
+            0..=2 => 3,
+            3..=7 => 4,
+            8..=14 => 5,
+            15..=19 => 6,
+            _ => 7,
+        }
+    }
+}
+
 // Resource for creating new slots which defines the slot to be loaded into
 pub struct LoadingProfileSlotNum(pub usize);
 

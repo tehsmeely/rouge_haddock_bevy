@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use bevy::prelude::{Color, FlexDirection, JustifyContent, NodeBundle, Rect, Size, Style, Val};
 use bevy::ui::UiColor;
 
-static DEBUG_COLOUR_I: AtomicUsize = AtomicUsize::new(0);
-const DEBUG_COLOURS: [Color; 5] = [
+pub static DEBUG_COLOUR_I: AtomicUsize = AtomicUsize::new(0);
+pub const DEBUG_COLOURS: [Color; 5] = [
     Color::RED,
     Color::BLUE,
     Color::GREEN,
@@ -12,7 +12,7 @@ const DEBUG_COLOURS: [Color; 5] = [
     Color::ORANGE,
 ];
 
-fn debug_get_colour() -> Color {
+pub fn debug_get_colour() -> Color {
     let mut i = DEBUG_COLOUR_I.load(Ordering::Relaxed) + 1;
     if i >= DEBUG_COLOURS.len() {
         i = 0;
@@ -179,7 +179,7 @@ pub mod vertical {
     pub fn full_with_background(background: Handle<Image>) -> NodeBundle {
         full_with_background_(background, false)
     }
-    pub fn full_with_background_(background: Handle<Image>, use_colour: bool) -> NodeBundle {
+    fn full_with_background_(background: Handle<Image>, use_colour: bool) -> NodeBundle {
         let color = if use_colour {
             UiColor(debug_get_colour())
         } else {
