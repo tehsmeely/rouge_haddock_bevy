@@ -29,6 +29,7 @@ use crate::game::end_game::{EndGameHook, EndGameVortex};
 use crate::game::turn::GlobalLevelCounter;
 use crate::profiles::profiles::LoadedUserProfile;
 use bevy::render::render_resource::Texture;
+use bevy::window::WindowResized;
 use std::time::Duration;
 
 pub struct GamePlugin;
@@ -44,10 +45,10 @@ impl Plugin for GamePlugin {
                     .with_system(input_handle_system.label("input"))
                     .with_system(mouse_click_system.label("input"))
                     .with_system(gamepad_input_handle_system.label("input"))
-                    .with_system(debug_print_input_system)
                     .with_system(player_power_system)
                     .with_system(player_movement_system.label("player_movement"))
                     .with_system(camera_follow_system.after("player_movement"))
+                    .with_system(camera_follow_update_system)
                     .with_system(player_movement_watcher.after("player_movement"))
                     .with_system(
                         enemy_system
@@ -56,8 +57,6 @@ impl Plugin for GamePlugin {
                     )
                     .with_system(animate_move_system.after("enemy_movement"))
                     .with_system(global_turn_counter_system.after("enemy_movement"))
-                    .with_system(mouse_click_debug_system.after("input"))
-                    .with_system(input_event_debug_system.after("input"))
                     .with_system(health_watcher_system.after("enemy_movement"))
                     .with_system(player_damaged_effect_system.after("enemy_movement"))
                     .with_system(player_death_animation_system.after("enemy_movement"))
@@ -89,6 +88,7 @@ impl Plugin for GamePlugin {
             )
             .add_plugin(TimedRemovalPlugin)
             .add_plugin(GameUiPlugin)
+            .add_plugin(super::debug::GameDebugPlugin)
             .add_event::<super::events::GameEvent>()
             .add_event::<super::events::InputEvent>()
             .add_event::<super::events::InfoEvent>()
@@ -438,6 +438,21 @@ fn camera_follow_system(
     }
 }
 
+fn camera_follow_update_system(
+    mut camera_follow_query: Query<&mut CameraFollow>,
+    mut window_resize_events: EventReader<WindowResized>,
+    windows: Res<Windows>,
+) {
+    let primary_window_id = windows.primary().id();
+    for resized_event in window_resize_events.iter() {
+        if resized_event.id == primary_window_id {
+            for mut camera_follow in camera_follow_query.iter_mut() {
+                camera_follow.update_threshold(resized_event.width, resized_event.height);
+            }
+        }
+    }
+}
+
 fn mouse_click_system(
     input: Res<Input<MouseButton>>,
     windows: Res<Windows>,
@@ -559,44 +574,6 @@ fn gamepad_input_handle_system(
         if let Some(dir) = new_direction {
             input_events.send(InputEvent::MoveDirection(dir));
             return;
-        }
-    }
-}
-
-fn input_event_debug_system(
-    mut input_events: EventReader<InputEvent>,
-    global_turn_counter: Res<GlobalTurnCounter>,
-    mut local_turn_counter: Local<TurnCounter>,
-) {
-    for event in input_events.iter() {
-        let event: &InputEvent = event;
-        info!("Input Event: {:?}", event);
-        if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::PlayerMovement) {
-            info!("Can take turn");
-        } else {
-            info!(
-                "Can't take turn. {:?}, {:?})",
-                global_turn_counter, local_turn_counter
-            );
-        }
-    }
-}
-
-fn mouse_click_debug_system(
-    mut mouse_event_reader: EventReader<MouseClickEvent>,
-    tile_type_query: Query<&HasTileType>,
-    mut map_query: MapQuery,
-) {
-    for MouseClickEvent {
-        button,
-        world_position,
-    } in mouse_event_reader.iter()
-    {
-        if button == &MouseButton::Left {
-            let tile_pos = TilePos::from_world_pos(world_position.x, world_position.y);
-            let tile_entity = map_query.get_tile_entity(tile_pos, 0, 0).unwrap();
-            let tile_type = tile_type_query.get(tile_entity).unwrap();
-            println!("Clicked {:?} ({:?})", tile_pos, tile_type);
         }
     }
 }
@@ -907,82 +884,6 @@ fn player_power_system(
     }
 }
 
-fn debug_print_input_system(
-    mut query: ParamSet<(
-        Query<(&Transform, &GlobalTransform)>,
-        Query<Entity, With<Player>>,
-        Query<(&TilePos, &Transform), With<Player>>,
-        Query<&TilePos, With<Enemy>>,
-    )>,
-    mut player_health_q: Query<&mut Health, With<Player>>,
-    mut player_charges_q: Query<&mut PowerCharges, With<Player>>,
-    input: Res<Input<KeyCode>>,
-    mut cell_map: ResMut<CellMap<i32>>,
-    mut commands: Commands,
-    mut asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    atlases: Res<TextureAtlasStore>,
-    mut info_event_writer: EventWriter<InfoEvent>,
-    image_assets: Res<ImageAssetStore>,
-) {
-    if input.just_pressed(KeyCode::P) {
-        for (trans, global_trans) in query.p0().iter() {
-            println!("{:?} (Global: {:?}", trans, global_trans)
-        }
-    }
-
-    if input.just_pressed(KeyCode::G) {
-        let player_entity = query.p1().single();
-        commands
-            .entity(player_entity)
-            .insert(Waggle::new(5, -0.4, 0.4, 10.0));
-    }
-    if input.just_pressed(KeyCode::H) {
-        info_event_writer.send(InfoEvent::PlayerHurt);
-    }
-
-    if input.just_pressed(KeyCode::O) {
-        info!("Spawning more sharks");
-        let exclude_positions = query
-            .p3()
-            .iter()
-            .map(|tilepos: &TilePos| tilepos.as_i32s())
-            .collect::<Vec<(i32, i32)>>();
-        let start_point = {
-            let q = query.p2();
-            let (TilePos(x, y), _trans) = q.single();
-            (*x as i32, *y as i32)
-        };
-        let recalculated_map = cell_map.recalculate(start_point);
-        let _: Vec<(i32, i32)> = super::enemy::add_sharks(
-            &mut commands,
-            &atlases,
-            4,
-            &recalculated_map,
-            Some(&exclude_positions),
-        );
-        *cell_map = recalculated_map;
-    }
-
-    if input.just_pressed(KeyCode::Key6) {
-        let mut health = player_health_q.single_mut();
-        health.hp += 3;
-    }
-    if input.just_pressed(KeyCode::Key7) {
-        let mut charges = player_charges_q.single_mut();
-        charges.charges += 3;
-    }
-
-    if input.just_pressed(KeyCode::Key8) {
-        info!("Spawning Vortex");
-        let spawn_pos = {
-            let q = query.p2();
-            let (TilePos(x, y), _trans) = q.single();
-            TilePos(*x + 1, *y)
-        };
-        super::end_game::spawn_vortex(&mut commands, spawn_pos, &image_assets)
-    }
-}
 fn setup(
     mut commands: Commands,
     image_assets: Res<ImageAssetStore>,
@@ -990,6 +891,8 @@ fn setup(
     map_query: MapQuery,
     global_level_counter: Res<GlobalLevelCounter>,
     images: Res<Assets<Image>>,
+    loaded_profile: Res<LoadedUserProfile>,
+    windows: Res<Windows>,
 ) {
     let border_size = 20usize;
     let cell_map: CellMap<i32> = {
@@ -1014,18 +917,18 @@ fn setup(
         let start_point = cell_map.start_point().unwrap_or((1, 1));
         TilePos(start_point.0 as u32, start_point.1 as u32)
     };
+    let camera_follow = CameraFollow::from_window(windows.primary());
     commands
         .spawn_bundle(TileResidentBundle::new(
-            3,
+            loaded_profile.user_profile.max_health(),
             start_point.clone(),
             atlas_handle,
             1,
         ))
-        .insert(CameraFollow {
-            x_threshold: 300.0,
-            y_threshold: 200.0,
-        })
-        .insert(PowerCharges::new(3))
+        .insert(camera_follow)
+        .insert(PowerCharges::new(
+            loaded_profile.user_profile.max_power_charges(),
+        ))
         .insert(Player);
     let mut spawned_positions = Vec::new();
     let shark_positions =

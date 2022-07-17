@@ -131,6 +131,7 @@ pub mod text {
         text: String,
         font: Handle<Font>,
         font_size: f32,
+        color: Color,
     ) -> TextNodes {
         let mut node_entity = None;
         let mut text_entity = None;
@@ -159,7 +160,7 @@ pub mod text {
                             TextStyle {
                                 font,
                                 font_size: 40.0,
-                                color: Color::rgb(0.0, 0.0, 0.0),
+                                color,
                             },
                             TextAlignment {
                                 vertical: VerticalAlign::Center,
@@ -181,6 +182,6 @@ pub mod text {
         font: Handle<Font>,
     ) -> TextNodes {
         let font_size = 40.0;
-        standard_centred_text_custom(builder, text, font, font_size)
+        standard_centred_text_custom(builder, text, font, font_size, Color::rgb(0.0, 0.0, 0.0))
     }
 }

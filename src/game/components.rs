@@ -23,6 +23,25 @@ pub struct CameraFollow {
     pub y_threshold: f32,
 }
 
+impl CameraFollow {
+    const THRESHOLD_FACTOR: f32 = 0.2;
+    pub fn from_window(window: &Window) -> Self {
+        let x_threshold = window.width() * Self::THRESHOLD_FACTOR;
+        let y_threshold = window.height() * Self::THRESHOLD_FACTOR;
+        Self {
+            x_threshold,
+            y_threshold,
+        }
+    }
+
+    pub fn update_threshold(&mut self, width: f32, height: f32) {
+        let x_threshold = width * Self::THRESHOLD_FACTOR;
+        let y_threshold = height * Self::THRESHOLD_FACTOR;
+        self.x_threshold = x_threshold;
+        self.y_threshold = y_threshold;
+    }
+}
+
 #[derive(Debug, Default, Component, Deref, DerefMut)]
 pub struct AnimationTimer(pub Timer);
 

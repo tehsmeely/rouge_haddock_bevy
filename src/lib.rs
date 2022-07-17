@@ -47,6 +47,7 @@ pub fn main() {
         .add_plugin(crate::game_menus::NewGameMenuPlugin)
         .add_state(initial_state)
         .add_system(setup_window_title)
+        .add_startup_system(print_window_info)
         .run();
 }
 
@@ -70,5 +71,13 @@ fn setup_window_title(
         let version = env!("CARGO_PKG_VERSION");
         primary.set_title(format!("Rouge Haddock . {}", version));
         active_system.0 = false;
+    }
+}
+
+fn print_window_info(mut windows: ResMut<Windows>) {
+    for mut window in windows.iter_mut() {
+        println!("{:?}", window);
+        window.set_resolution(800f32, 550f32);
+        println!("{:?}", window);
     }
 }

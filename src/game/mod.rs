@@ -1,4 +1,5 @@
 pub mod components;
+mod debug;
 mod end_game;
 mod enemy;
 mod events;

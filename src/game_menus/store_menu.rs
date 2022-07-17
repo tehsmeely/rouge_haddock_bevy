@@ -5,7 +5,7 @@ use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::game_menus::components::{HubMenuOnly, StoreButton, StoreMenuOnly};
 use crate::menu_core::menu_core;
-use crate::menu_core::menu_core::text::standard_centred_text;
+use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_text_custom};
 use crate::menu_core::structure::SplitWay;
 use crate::profiles::profiles::{LoadedUserProfile, UserProfile};
 use bevy::prelude::{FlexDirection, JustifyContent};
@@ -168,10 +168,12 @@ fn menu_setup(
                                 parent,
                                 SplitWay::Vertical,
                                 |parent| {
-                                    let text_nodes = standard_centred_text(
+                                    let text_nodes = standard_centred_text_custom(
                                         parent,
                                         "Shells".to_string(),
                                         font.clone(),
+                                        40.0,
+                                        Color::WHITE,
                                     );
                                     display_text_shells = Some(StoreMenuDisplayText(
                                         StoreMenuDisplayTextType::Shells,

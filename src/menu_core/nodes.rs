@@ -70,7 +70,7 @@ pub mod general {
     impl Default for Properties {
         fn default() -> Self {
             Self {
-                colour: debug_get_colour(),
+                colour: Self::default_colour(),
                 height: Val::default(),
                 width: Val::default(),
                 margin: Val::default(),
@@ -82,6 +82,14 @@ pub mod general {
     }
 
     impl Properties {
+        #[cfg(debug_assertions)]
+        fn default_colour() -> Color {
+            debug_get_colour()
+        }
+        #[cfg(not(debug_assertions))]
+        fn default_colour() -> Color {
+            Color::hsla(0f32, 0f32, 0f32, 0f32)
+        }
         fn set(&mut self, property: Property) {
             match property {
                 Property::Colour(color) => self.colour = color,
@@ -123,9 +131,20 @@ pub mod general {
     }
 }
 
+#[cfg(debug_assertions)]
+fn get_colour() -> Color {
+    debug_get_colour()
+}
+#[cfg(not(debug_assertions))]
+fn get_colour() -> Color {
+    Color::hsla(0f32, 0f32, 0f32, 0f32)
+}
+
 pub mod horizontal {
     use super::debug_get_colour;
+    use crate::menu_core::nodes::get_colour;
     use bevy::prelude::*;
+
     pub fn full() -> NodeBundle {
         NodeBundle {
             style: Style {
@@ -135,7 +154,7 @@ pub mod horizontal {
                 flex_direction: FlexDirection::Row,
                 ..Default::default()
             },
-            color: UiColor(debug_get_colour()),
+            color: UiColor(get_colour()),
             ..Default::default()
         }
     }
@@ -148,7 +167,7 @@ pub mod horizontal {
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
             },
-            color: UiColor(debug_get_colour()),
+            color: UiColor(get_colour()),
             ..Default::default()
         }
     }
@@ -162,7 +181,7 @@ pub mod horizontal {
                 flex_grow: 0_f32,
                 ..Default::default()
             },
-            color: UiColor(debug_get_colour()),
+            color: UiColor(get_colour()),
             ..Default::default()
         }
     }
@@ -170,6 +189,7 @@ pub mod horizontal {
 
 pub mod vertical {
     use super::debug_get_colour;
+    use crate::menu_core::nodes::get_colour;
     use bevy::prelude::*;
 
     pub fn full() -> NodeBundle {
@@ -181,7 +201,7 @@ pub mod vertical {
     }
     fn full_with_background_(background: Handle<Image>, use_colour: bool) -> NodeBundle {
         let color = if use_colour {
-            UiColor(debug_get_colour())
+            UiColor(get_colour())
         } else {
             Default::default()
         };
@@ -207,7 +227,7 @@ pub mod vertical {
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
             },
-            color: UiColor(debug_get_colour()),
+            color: UiColor(get_colour()),
             ..Default::default()
         }
     }
@@ -221,7 +241,7 @@ pub mod vertical {
                 flex_grow: 0_f32,
                 ..Default::default()
             },
-            color: UiColor(debug_get_colour()),
+            color: UiColor(get_colour()),
             ..Default::default()
         }
     }

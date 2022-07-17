@@ -64,9 +64,10 @@ fn menu_setup(
     commands
         .spawn_bundle(nodes::general::new(nodes::general::defaults::full(
             FlexDirection::Row,
-            Some(vec![nodes::general::Property::Image(
-                image_assets.get(&ImageAsset::Background),
-            )]),
+            Some(vec![
+                nodes::general::Property::Colour(Color::rgba(1., 1., 1., 1.0)),
+                nodes::general::Property::Image(image_assets.get(&ImageAsset::Background)),
+            ]),
         )))
         //.spawn_bundle(crate::menu_core::nodes::horizontal::full())
         .insert(HubMenuOnly {})
@@ -91,7 +92,13 @@ fn left_bar_stats_bundle(
     parent
         .spawn_bundle(crate::menu_core::nodes::horizontal::half())
         .with_children(|parent| {
-            standard_centred_text_custom(parent, user_profile.name.clone(), font.clone(), 60.0);
+            standard_centred_text_custom(
+                parent,
+                user_profile.name.clone(),
+                font.clone(),
+                60.0,
+                Color::BLACK,
+            );
             parent.spawn_bundle(ImageBundle {
                 style: Style {
                     size: Size::new(Val::Px(128.0), Val::Px(128.0)),

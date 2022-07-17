@@ -13,7 +13,7 @@ class MyServer(BaseHTTPRequestHandler):
 
         fname = None
         if self.path == "/":
-            fname = "index.html"
+            fname = "index2.html"
         elif self.path[:5] == "/out/":
             fname = self.path[1:]
 

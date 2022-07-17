@@ -3,6 +3,15 @@ use crate::menu_core::nodes::debug_get_colour;
 use bevy::prelude::*;
 use std::ops::Not;
 
+#[cfg(debug_assertions)]
+fn get_colour() -> Color {
+    debug_get_colour()
+}
+#[cfg(not(debug_assertions))]
+fn get_colour() -> Color {
+    Color::hsla(0f32, 0f32, 0f32, 0f32)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum SplitWay {
     Horizontal,
@@ -73,7 +82,7 @@ pub fn split_unequal<F, G>(
                 flex_direction: split_way.into(),
                 ..Default::default()
             },
-            color: UiColor(debug_get_colour()),
+            color: UiColor(get_colour()),
             ..Default::default()
         })
         .with_children(|parent| {
@@ -86,7 +95,7 @@ pub fn split_unequal<F, G>(
                         flex_direction: (!split_way).into(),
                         ..Default::default()
                     },
-                    color: UiColor(debug_get_colour()),
+                    color: UiColor(get_colour()),
                     ..Default::default()
                 })
                 .with_children(second);
@@ -99,7 +108,7 @@ pub fn split_unequal<F, G>(
                         flex_direction: (!split_way).into(),
                         ..Default::default()
                     },
-                    color: UiColor(debug_get_colour()),
+                    color: UiColor(get_colour()),
                     ..Default::default()
                 })
                 .with_children(first);
