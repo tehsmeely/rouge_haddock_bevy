@@ -4,6 +4,7 @@ use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
 use crate::game::components::{
     AnimationTimer, DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType,
 };
+use crate::game::enemy::JellyfishLightningTile;
 use crate::game::events::GameEvent;
 use crate::game::tilemap::HasTileType;
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
@@ -48,7 +49,7 @@ impl Projectile {
 }
 
 /// This system only progresses turn phase if all projectiles have ceased to exist
-pub fn projectile_watcher_system(
+pub fn _projectile_watcher_system(
     projectile_query: Query<Entity, With<Projectile>>,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
@@ -63,6 +64,47 @@ pub fn projectile_watcher_system(
         if projectile_query.is_empty() {
             if *frame_delay > 1 {
                 game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerPowerEffect));
+                local_turn_counter.incr();
+            } else {
+                *frame_delay += 1;
+            }
+        } else {
+            *frame_delay = 0;
+        }
+    }
+}
+
+pub trait HasWatcherPhase {
+    fn watcher_phase() -> GamePhase;
+}
+
+impl HasWatcherPhase for Projectile {
+    fn watcher_phase() -> GamePhase {
+        GamePhase::PlayerPowerEffect
+    }
+}
+impl HasWatcherPhase for JellyfishLightningTile {
+    fn watcher_phase() -> GamePhase {
+        GamePhase::EnemyPowerEffect
+    }
+}
+
+/// This system only progresses turn phase if all projectiles have ceased to exist
+pub fn phase_watcher_system<Effect: Component + HasWatcherPhase>(
+    effect_query: Query<Entity, With<Effect>>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    mut local_turn_counter: Local<TurnCounter>,
+    mut game_event_writer: EventWriter<GameEvent>,
+    mut frame_delay: Local<usize>,
+) {
+    // [frame_delay] protects against the system running when we enter the PlayerPowerEffect phase but before
+    // the stage has spawned the projectile - because spawns from [Commands] happen in a later stage
+    // waiting to see no projectiles twice will cause one frame cycle for cases where we don't fire a projectile
+    // If this is a problem, this system would be run in a stage AFTER the spawning happens
+    if global_turn_counter.can_take_turn(&mut local_turn_counter, Effect::watcher_phase()) {
+        if effect_query.is_empty() {
+            if *frame_delay > 1 {
+                game_event_writer.send(GameEvent::PhaseComplete(Effect::watcher_phase()));
                 local_turn_counter.incr();
             } else {
                 *frame_delay += 1;
@@ -143,15 +185,16 @@ pub fn scan_to_endpoint<T: Component>(
     query: &Query<(Entity, &TilePos), With<T>>,
     map_query: &mut MapQuery,
     tiletype_query: &Query<&HasTileType>,
+    return_early_on_target_hit: bool,
 ) -> ProjectileFate {
-    let enemies_on_same_row_or_column: HashMap<TilePos, Entity> = {
-        let mut enemies = HashMap::with_capacity(5);
+    let targets_on_same_row_or_column: HashMap<TilePos, Entity> = {
+        let mut targets = HashMap::with_capacity(5);
         for (entity, tilepos) in query.iter() {
             if tilepos.0 == from.0 || tilepos.1 == from.1 {
-                enemies.insert(*tilepos, entity);
+                targets.insert(*tilepos, entity);
             }
         }
-        enemies
+        targets
     };
     let step = direction.to_unit_translation().truncate();
     let mut test_pos = *from;
@@ -160,21 +203,35 @@ pub fn scan_to_endpoint<T: Component>(
         "Calculating projectile from: {:?} in direction {:?}",
         from, step
     );
+    let mut hit_target: Option<Entity> = None;
     loop {
         i += 1;
-        if i > 50 {
+        if i > 150 {
             panic!("Projectile loop did not terminate");
         }
         tilepos_add_vec(&mut test_pos, &step);
         println!("Testing pos: {:?}", test_pos);
         let tile_type = get_tiletype(&test_pos, tiletype_query, map_query);
         if tile_type.can_enter() {
-            match enemies_on_same_row_or_column.get(&test_pos) {
-                Some(entity) => return ProjectileFate::EndHitTarget((test_pos, *entity)),
+            match targets_on_same_row_or_column.get(&test_pos) {
+                Some(entity) => {
+                    if return_early_on_target_hit {
+                        return ProjectileFate::EndHitTarget((test_pos, *entity));
+                    } else {
+                        hit_target = Some(*entity);
+                    }
+                }
                 None => (),
             }
         } else {
-            return ProjectileFate::EndNoTarget(test_pos);
+            match hit_target {
+                Some(target) => {
+                    return ProjectileFate::EndHitTarget((test_pos, target));
+                }
+                None => {
+                    return ProjectileFate::EndNoTarget(test_pos);
+                }
+            }
         }
     }
 }

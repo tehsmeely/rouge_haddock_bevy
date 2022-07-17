@@ -11,6 +11,9 @@ use crate::map_gen::cell_map::CellMap;
 pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;
 
+    ///non-euclidean distance between two tileposes
+    fn distance_to(&self, other: &Self) -> usize;
+
     // TODO: Call this "to_global_position" to ensure non-confusion with local transforms?
     fn to_world_pos(&self, z: f32) -> Vec3;
     fn from_world_pos(x: f32, y: f32) -> Self;
@@ -63,6 +66,11 @@ impl TilePosExt for TilePos {
         } else {
             Self(0, 0)
         }
+    }
+
+    fn distance_to(&self, other: &Self) -> usize {
+        let dist = self.0.abs_diff(other.0) + self.1.abs_diff(other.1);
+        dist as usize
     }
 }
 

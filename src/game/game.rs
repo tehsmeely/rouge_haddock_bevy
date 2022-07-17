@@ -23,13 +23,16 @@ use crate::map_gen::cell_map::CellMap;
 
 use bevy_kira_audio::Audio;
 
-use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
-use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
+use crate::asset_handling::asset::{AudioAsset, ImageAsset, TextureAtlasAsset};
+use crate::asset_handling::{AudioAssetStore, ImageAssetStore, TextureAtlasStore};
 use crate::game::end_game::{EndGameHook, EndGameVortex};
+use crate::game::enemy::{Jellyfish, JellyfishLightningTile, JellyfishState};
+use crate::game::projectile::Projectile;
 use crate::game::turn::GlobalLevelCounter;
 use crate::profiles::profiles::LoadedUserProfile;
 use bevy::render::render_resource::Texture;
 use bevy::window::WindowResized;
+use rand::Rng;
 use std::time::Duration;
 
 pub struct GamePlugin;
@@ -51,9 +54,24 @@ impl Plugin for GamePlugin {
                     .with_system(camera_follow_update_system)
                     .with_system(player_movement_watcher.after("player_movement"))
                     .with_system(
+                        (super::projectile::phase_watcher_system::<Projectile>)
+                            .label("post_player_movement")
+                            .after("player_movement"),
+                    )
+                    .with_system(
+                        jellyfish_system
+                            .after("post_player_movement")
+                            .label("pre_enemy_movement"),
+                    )
+                    .with_system(
+                        (super::projectile::phase_watcher_system::<JellyfishLightningTile>)
+                            .label("post_pre_enemy_movement")
+                            .after("pre_enemy_movement"),
+                    )
+                    .with_system(
                         enemy_system
                             .label("enemy_movement")
-                            .after("player_movement"),
+                            .after("post_pre_enemy_movement"),
                     )
                     .with_system(animate_move_system.after("enemy_movement"))
                     .with_system(global_turn_counter_system.after("enemy_movement"))
@@ -72,7 +90,6 @@ impl Plugin for GamePlugin {
                     .with_system(super::end_game::end_game_vortex_system)
                     .with_system(super::end_game::hooked_animation_system)
                     .with_system(super::end_game::vortex_animation_system)
-                    .with_system(super::projectile::projectile_watcher_system)
                     .with_system(super::projectile::projectile_system)
                     .with_system(super::snails::snail_pickup_system),
             )
@@ -648,43 +665,105 @@ fn sfx_system(
     mut info_event_reader: EventReader<InfoEvent>,
     audio: Res<Audio>,
     assets: Res<AssetServer>,
+    audio_asset_store: Res<AudioAssetStore>,
 ) {
     // TODO: Move audio to asset system
     for event in info_event_reader.iter() {
         match event {
             InfoEvent::PlayerHurt => {
                 debug!("Playing Audio for Player Hurt");
-                let sound = assets.load("audio/342229__christopherderp__hurt-1-male.wav");
-                audio.play(sound);
+                audio.play(audio_asset_store.get(&AudioAsset::Hurt));
             }
             InfoEvent::EnemyKilled => {
                 debug!("Playing Audio for Enemy Killed");
-                let sound = assets.load("audio/carrotnom.wav");
-                audio.play(sound);
+                audio.play(audio_asset_store.get(&AudioAsset::Chomp));
             }
             InfoEvent::PlayerMoved => {
                 debug!("Playing Audio for Player Moved");
-                let sound = assets.load("audio/fish_slap.ogg");
-                audio.play(sound);
+                audio.play(audio_asset_store.get(&AudioAsset::FishSlap));
             }
             InfoEvent::PlayerKilled => {
                 debug!("Playing Audio for Player Died");
-                let sound = assets.load("audio/398068__happyparakeet__pixel-death.wav");
-                audio.play(sound);
+                audio.play(audio_asset_store.get(&AudioAsset::Death));
             }
             InfoEvent::PlayerPickedUpSnail => {
                 debug!("Playing Audio for Player Picked Up Snail");
-                let sound = assets.load("audio/608431__plasterbrain__shiny-coin-pickup.flac");
-                audio.play(sound);
+                audio.play(audio_asset_store.get(&AudioAsset::Pickup));
+            }
+            InfoEvent::JellyLightningFired => {
+                debug!("Playing Audio for Jellyfish lightning");
+                audio.play(audio_asset_store.get(&AudioAsset::JellyLightning));
             }
         }
+    }
+}
+
+fn jellyfish_system(
+    mut commands: Commands,
+    mut game_event_writer: EventWriter<GameEvent>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    mut local_turn_counter: Local<TurnCounter>,
+    mut jellyfish_query: Query<(&mut Jellyfish, &TilePos)>,
+    texture_atlas_store: Res<TextureAtlasStore>,
+    mut info_event_writer: EventWriter<InfoEvent>,
+    player_query: Query<(Entity, &TilePos), With<Player>>,
+    mut health_query: Query<&mut Health>,
+    mut map_query: MapQuery,
+    tiletype_query: Query<&HasTileType>,
+) {
+    if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::PreEnemyMovement) {
+        for (mut jellyfish, tile_pos) in jellyfish_query.iter_mut() {
+            let final_state = match &jellyfish.state {
+                JellyfishState::Normal => {
+                    let mut rng = rand::thread_rng();
+                    if rng.gen_bool(Jellyfish::CHARGE_CHANCE) {
+                        JellyfishState::Charging(MapDirection::rand_choice())
+                    } else {
+                        JellyfishState::Normal
+                    }
+                }
+                JellyfishState::Charging(direction) => {
+                    let (lightning_length, hit) = super::enemy::jelly_lightning_projection(
+                        &tile_pos,
+                        &direction,
+                        &player_query,
+                        &mut map_query,
+                        &tiletype_query,
+                    );
+                    if lightning_length > 0 {
+                        super::enemy::spawn_jelly_lightning(
+                            &mut commands,
+                            &texture_atlas_store,
+                            tile_pos.clone().add(direction.to_pos_move()),
+                            lightning_length,
+                            direction.clone(),
+                        );
+                    }
+                    if let Some(player_entity) = hit {
+                        if let Ok(mut health) = health_query.get_mut(player_entity) {
+                            health.decr_by(1);
+                        }
+                    }
+                    info_event_writer.send(InfoEvent::JellyLightningFired);
+                    JellyfishState::Recharging(Jellyfish::RECHARGE_TURNS)
+                }
+                JellyfishState::Recharging(recharge_turns) => match recharge_turns - 1 {
+                    0 => JellyfishState::Normal,
+                    remaining => JellyfishState::Recharging(remaining),
+                },
+            };
+            info!("Jellyfish at {:?} state is {:?}", tile_pos, final_state);
+            jellyfish.state = final_state;
+        }
+        local_turn_counter.incr();
+        game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PreEnemyMovement));
     }
 }
 fn enemy_system(
     mut game_event_writer: EventWriter<GameEvent>,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
-    enemy_query: Query<(Entity, &CanMoveDistance, &MoveWeighting), With<Enemy>>,
+    enemy_query: Query<(Entity, &Enemy, &CanMoveDistance, &MoveWeighting)>,
     health_query: Query<&mut Health>,
     mut move_query: ParamSet<(
         Query<&TilePos, With<Player>>,
@@ -693,17 +772,24 @@ fn enemy_system(
         Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     )>,
     mut map_query: MapQuery,
+    mut jellyfish_query: Query<&Jellyfish>,
     tile_type_query: Query<&HasTileType>,
 ) {
     let player_position = *move_query.p0().get_single().unwrap();
     if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::EnemyMovement) {
-        let attack_criteria = AttackCriteria::for_enemy();
         let mut move_decisions = MoveDecisions::new();
         let mut moved_to = Vec::new();
-        for (entity, can_move_distance, move_weights) in enemy_query.iter() {
+        for (entity, enemy, can_move_distance, move_weights) in enemy_query.iter() {
+            let attack_criteria = AttackCriteria::for_enemy(enemy.can_attack_directly);
             let current_pos = *move_query.p1().get(entity).unwrap();
             let direction =
                 MapDirection::weighted_rand_choice(&current_pos, &player_position, move_weights);
+            if let Ok(jellyfish) = jellyfish_query.get(entity) {
+                // If enemy is a jellyfish, we skip moving if in one of the restricted states
+                if !jellyfish.can_move() {
+                    continue;
+                }
+            }
             let decision = super::movement::decide_move(
                 &current_pos,
                 &direction,
@@ -779,7 +865,7 @@ fn player_movement_system(
 
                     let move_decision = super::movement::decide_move(
                         &current_pos,
-                        direction,
+                        &direction,
                         1,
                         &AttackCriteria::for_player(),
                         move_query.p1(),
@@ -799,8 +885,10 @@ fn player_movement_system(
                     game_event_writer.send(GameEvent::PhaseComplete(GamePhase::PlayerMovement));
                 } else {
                     info!(
-                        "Can't take turn: {:?} {:?}",
-                        global_turn_counter, local_turn_counter
+                        "Can't take {:?} turn: {:?} {:?}",
+                        GamePhase::PlayerMovement,
+                        global_turn_counter,
+                        local_turn_counter
                     );
                 }
             }
@@ -868,6 +956,7 @@ fn player_power_system(
                     &query.p1(),
                     &mut map_query,
                     &tile_type_query,
+                    true,
                 );
                 let end_point = *fate.tile_pos();
                 let end_target_entity = fate.entity();
@@ -942,19 +1031,28 @@ fn setup(
         Some(&spawned_positions),
     );
     spawned_positions.extend_from_slice(&crab_positions[..]);
+    let jelly_positions = super::enemy::add_jellyfish(
+        &mut commands,
+        &texture_atlas_store,
+        1,
+        &cell_map,
+        Some(&spawned_positions),
+    );
+    spawned_positions.extend_from_slice(&crab_positions[..]);
     let (snail_num, snail_positions) = super::snails::choose_number_of_and_spawn_snails(
         &mut commands,
         &texture_atlas_store,
         &cell_map,
         Some(&spawned_positions),
     );
-    info!("Spawned {}", snail_num);
+    info!("Spawned {} snails", snail_num);
     spawned_positions.extend_from_slice(&crab_positions[..]);
     commands.insert_resource(cell_map);
     let regular_game_enable = RegularGameEnable {
         enabled: false,
         disable_cycle_count: 2,
     };
+
     commands.insert_resource(regular_game_enable);
     info!(
         "Completed Setup for level :{}",

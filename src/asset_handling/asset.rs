@@ -15,6 +15,9 @@ pub enum ImageAsset {
     ProjectileSpritesheet,
     TileMapSpritesheet,
     SnailSpritesheet,
+    JellySpritesheet,
+    JellyChargeIndicator,
+    JellyLightning,
     VortexSprite,
     Background,
 }
@@ -29,7 +32,27 @@ impl ImageAsset {
 }
 
 #[derive(EnumIter, PartialEq, Eq, Hash, Debug, Clone, Copy)]
-pub enum AudioAsset {}
+pub enum AudioAsset {
+    JellyLightning,
+    Hurt,
+    Chomp,
+    FishSlap,
+    Death,
+    Pickup,
+}
+
+impl AssetClass for AudioAsset {
+    fn to_filename(&self) -> &str {
+        match self {
+            Self::JellyLightning => "audio/512471__michael-grinnell__electric-zap.wav",
+            Self::Hurt => "audio/342229__christopherderp__hurt-1-male.wav",
+            Self::Chomp => "audio/carrotnom.wav",
+            Self::FishSlap => "audio/fish_slap.ogg",
+            Self::Death => "audio/398068__happyparakeet__pixel-death.wav",
+            Self::Pickup => "audio/608431__plasterbrain__shiny-coin-pickup.flac",
+        }
+    }
+}
 
 impl AssetClass for ImageAsset {
     fn to_filename(&self) -> &str {
@@ -42,8 +65,11 @@ impl AssetClass for ImageAsset {
             Self::ProjectileSpritesheet => "sprites/projectile_spritesheet.png",
             Self::TileMapSpritesheet => "sprites/tilemap_spritesheet.png",
             Self::SnailSpritesheet => "sprites/prey_snail_spritesheet.png",
+            Self::JellySpritesheet => "sprites/jelly_spritesheet.png",
             Self::VortexSprite => "sprites/vortex.png",
             Self::Background => "sprites/back.png",
+            Self::JellyChargeIndicator => "sprites/jelly_charge_indicator.png",
+            Self::JellyLightning => "sprites/jelly_lightning.png",
         }
     }
 }
@@ -55,6 +81,9 @@ pub enum TextureAtlasAsset {
     CrabSpritesheet,
     ProjectileSpritesheet,
     SnailSpritesheet,
+    JellySpritesheet,
+    JellyChargeIndicator,
+    JellyLightning,
 }
 
 impl TextureAtlasAsset {
@@ -65,6 +94,9 @@ impl TextureAtlasAsset {
             Self::CrabSpritesheet => ImageAsset::CrabSpritesheet,
             Self::ProjectileSpritesheet => ImageAsset::ProjectileSpritesheet,
             Self::SnailSpritesheet => ImageAsset::SnailSpritesheet,
+            Self::JellySpritesheet => ImageAsset::JellySpritesheet,
+            Self::JellyChargeIndicator => ImageAsset::JellyChargeIndicator,
+            Self::JellyLightning => ImageAsset::JellyLightning,
         }
     }
 
@@ -73,6 +105,9 @@ impl TextureAtlasAsset {
             Self::HaddockSpritesheet
             | Self::SharkSpritesheet
             | Self::CrabSpritesheet
+            | Self::JellySpritesheet
+            | Self::JellyChargeIndicator
+            | Self::JellyLightning
             | Self::SnailSpritesheet => (64.0, 64.0),
             Self::ProjectileSpritesheet => (20.0, 20.0),
         };
@@ -85,13 +120,20 @@ impl TextureAtlasAsset {
             Self::SharkSpritesheet
             | Self::CrabSpritesheet
             | Self::ProjectileSpritesheet
+            | Self::JellySpritesheet
+            | Self::JellyChargeIndicator
             | Self::SnailSpritesheet => 4,
+            Self::JellyLightning => 3,
         }
     }
     pub fn rows(&self) -> usize {
         match self {
             Self::HaddockSpritesheet | Self::SharkSpritesheet | Self::ProjectileSpritesheet => 4,
-            Self::CrabSpritesheet | Self::SnailSpritesheet => 1,
+            Self::CrabSpritesheet
+            | Self::JellySpritesheet
+            | Self::JellyChargeIndicator
+            | Self::JellyLightning
+            | Self::SnailSpritesheet => 1,
         }
     }
 }

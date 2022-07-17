@@ -6,6 +6,7 @@ use interpolation::Lerp;
 use num::clamp;
 use rand::Rng;
 use std::collections::HashMap;
+use std::f32::consts::{FRAC_PI_2, PI};
 
 #[derive(Debug, Component, Default)]
 pub struct GameOnly;
@@ -73,7 +74,16 @@ impl MapDirection {
         }
     }
 
-    const ALL: [MapDirection; 4] = [Self::Up, Self::Right, Self::Down, Self::Left];
+    pub fn to_rotation_from_right_zero(&self) -> f32 {
+        match self {
+            Self::Right => 0.0,
+            Self::Down => -FRAC_PI_2,
+            Self::Left => PI,
+            Self::Up => FRAC_PI_2,
+        }
+    }
+
+    pub const ALL: [MapDirection; 4] = [Self::Up, Self::Right, Self::Down, Self::Left];
 
     pub fn rand_choice() -> Self {
         use rand::seq::SliceRandom;
@@ -598,17 +608,22 @@ impl SimpleTileResidentBundle {
         tile_pos: TilePos,
         atlas_handle: Handle<TextureAtlas>,
         animation_frames: usize,
+        animation_timer: Option<Timer>,
     ) -> Self {
         let mut rng = rand::thread_rng();
         let initial_frame = rng.gen_range(0..animation_frames);
         let start_pos = tile_pos.to_world_pos(10.0);
+        let animation_timer = match animation_timer {
+            Some(timer) => AnimationTimer(timer),
+            None => AnimationTimer(Timer::from_seconds(0.1, true)),
+        };
         Self {
             sprite_sheet_bundle: SpriteSheetBundle {
                 texture_atlas: atlas_handle,
                 transform: Transform::from_translation(start_pos),
                 ..Default::default()
             },
-            animation_timer: AnimationTimer(Timer::from_seconds(0.1, true)),
+            animation_timer,
             facing: (Facing::default()),
             simple_animation: SimpleSpriteAnimation::new(initial_frame, animation_frames),
             tile_pos: (tile_pos),

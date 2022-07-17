@@ -1,8 +1,10 @@
 use super::asset::{AssetClass, ImageAsset, TextureAtlasAsset};
+use crate::asset_handling::asset::AudioAsset;
 use crate::CoreState;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
+use bevy_kira_audio::AudioSource;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
@@ -10,6 +12,7 @@ pub struct LoadingPlugin;
 
 pub struct ImageAssetStore(HashMap<ImageAsset, Handle<Image>>);
 pub struct TextureAtlasStore(HashMap<TextureAtlasAsset, Handle<TextureAtlas>>);
+pub struct AudioAssetStore(HashMap<AudioAsset, Handle<AudioSource>>);
 
 impl ImageAssetStore {
     pub fn get(&self, key: &ImageAsset) -> Handle<Image> {
@@ -18,6 +21,12 @@ impl ImageAssetStore {
 }
 impl TextureAtlasStore {
     pub fn get(&self, key: &TextureAtlasAsset) -> Handle<TextureAtlas> {
+        self.0.get(key).unwrap().clone()
+    }
+}
+
+impl AudioAssetStore {
+    pub fn get(&self, key: &AudioAsset) -> Handle<AudioSource> {
         self.0.get(key).unwrap().clone()
     }
 }
@@ -46,8 +55,17 @@ fn load_all(
     }
     let image_asset_store = ImageAssetStore(image_handles);
     let texture_atlas_store = load_texture_atlases(&image_asset_store, texture_atlases);
+
+    let mut audio_handles = HashMap::new();
+    for asset in AudioAsset::iter() {
+        let handle = asset_server.load(asset.to_filename());
+        audio_handles.insert(asset, handle);
+    }
+    let audio_asset_store = AudioAssetStore(audio_handles);
+
     commands.insert_resource(image_asset_store);
     commands.insert_resource(texture_atlas_store);
+    commands.insert_resource(audio_asset_store);
 }
 
 fn load_texture_atlases(

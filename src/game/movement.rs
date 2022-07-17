@@ -52,11 +52,11 @@ impl AttackCriteria {
             move_on_attack: true,
         }
     }
-    pub fn for_enemy() -> Self {
+    pub fn for_enemy(can_attack_directly: bool) -> Self {
         Self {
             damage: 1,
             can_attack_enemy: false,
-            can_attack_player: true,
+            can_attack_player: can_attack_directly,
             move_on_attack: false,
         }
     }

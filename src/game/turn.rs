@@ -71,6 +71,8 @@ impl GlobalTurnCounter {
 pub enum GamePhase {
     PlayerMovement,
     PlayerPowerEffect,
+    PreEnemyMovement,
+    EnemyPowerEffect,
     EnemyMovement,
 }
 
@@ -78,7 +80,9 @@ impl GamePhase {
     fn next(&self) -> Self {
         match self {
             GamePhase::PlayerMovement => GamePhase::PlayerPowerEffect,
-            GamePhase::PlayerPowerEffect => GamePhase::EnemyMovement,
+            GamePhase::PlayerPowerEffect => GamePhase::PreEnemyMovement,
+            GamePhase::PreEnemyMovement => GamePhase::EnemyPowerEffect,
+            GamePhase::EnemyPowerEffect => GamePhase::EnemyMovement,
             GamePhase::EnemyMovement => GamePhase::PlayerMovement,
         }
     }
