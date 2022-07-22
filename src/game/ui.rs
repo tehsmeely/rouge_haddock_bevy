@@ -10,6 +10,8 @@ pub struct GameUiOnly;
 
 pub struct GameUiPlugin;
 
+pub struct GameOverlayUiRootNode(pub Entity);
+
 impl Plugin for GameUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_system_set(SystemSet::on_enter(crate::CoreState::GameLevel).with_system(ui_setup))
@@ -30,24 +32,38 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
     let banner_height = Val::Px(40.0);
     commands.spawn_bundle(UiCameraBundle::default());
+    let mut root_node = None;
     commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), banner_height),
-                margin: Rect::all(Val::Px(0.0)),
-                justify_content: JustifyContent::FlexStart,
-                flex_direction: FlexDirection::RowReverse,
-                ..Default::default()
-            },
-            color: UiColor(Color::rgba(0.0, 0.0, 0.0, 0.0)),
-            ..Default::default()
-        })
+        .spawn_bundle(crate::menu_core::nodes::vertical::full())
         .insert(GameUiOnly {})
         .with_children(|parent| {
-            ui_components::health_counter(parent, font.clone(), &banner_height);
-            ui_components::power_charge_counter(parent, font.clone(), &banner_height);
-            ui_components::turn_counter(parent, font.clone(), &banner_height);
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(100.0), banner_height),
+                        margin: Rect::all(Val::Px(0.0)),
+                        justify_content: JustifyContent::FlexStart,
+                        flex_direction: FlexDirection::RowReverse,
+                        ..Default::default()
+                    },
+                    visibility: Visibility { is_visible: false },
+                    //color: UiColor(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+                    color: UiColor(Color::rgba(1.0, 0.0, 0.0, 0.2)),
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                    ui_components::health_counter(parent, font.clone(), &banner_height);
+                    ui_components::power_charge_counter(parent, font.clone(), &banner_height);
+                    ui_components::turn_counter(parent, font.clone(), &banner_height);
+                });
+
+            root_node = Some(
+                parent
+                    .spawn_bundle(crate::menu_core::nodes::vertical::half())
+                    .id(),
+            );
         });
+    commands.insert_resource(GameOverlayUiRootNode(root_node.unwrap()));
 }
 
 fn ui_player_health_system(

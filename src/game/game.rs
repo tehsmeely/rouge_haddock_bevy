@@ -982,6 +982,7 @@ fn setup(
     images: Res<Assets<Image>>,
     loaded_profile: Res<LoadedUserProfile>,
     windows: Res<Windows>,
+    mut input: ResMut<Input<KeyCode>>,
 ) {
     let border_size = 20usize;
     let cell_map: CellMap<i32> = {
