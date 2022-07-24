@@ -20,6 +20,7 @@ pub enum ImageAsset {
     JellyLightning,
     VortexSprite,
     Background,
+    HelpCard,
 }
 
 impl ImageAsset {
@@ -70,6 +71,7 @@ impl AssetClass for ImageAsset {
             Self::Background => "sprites/back.png",
             Self::JellyChargeIndicator => "sprites/jelly_charge_indicator.png",
             Self::JellyLightning => "sprites/jelly_lightning.png",
+            Self::HelpCard => "ui/help_card.png",
         }
     }
 }

@@ -37,6 +37,9 @@ pub mod general {
         Image(Handle<Image>),
         Justify(JustifyContent),
         Direction(FlexDirection),
+        AspectRatio(f32),
+        FlexGrow(f32),
+        FlexBasis(Val),
     }
 
     pub mod defaults {
@@ -65,6 +68,9 @@ pub mod general {
         image: Handle<Image>,
         justify: JustifyContent,
         direction: FlexDirection,
+        aspect_ratio: Option<f32>,
+        flex_grow: f32,
+        flex_basis: Val,
     }
 
     impl Default for Properties {
@@ -77,6 +83,9 @@ pub mod general {
                 image: Default::default(),
                 justify: JustifyContent::default(),
                 direction: FlexDirection::default(),
+                aspect_ratio: None,
+                flex_grow: f32::default(),
+                flex_basis: Val::default(),
             }
         }
     }
@@ -99,6 +108,9 @@ pub mod general {
                 Property::Image(image) => self.image = image,
                 Property::Justify(justify_content) => self.justify = justify_content,
                 Property::Direction(flex_direction) => self.direction = flex_direction,
+                Property::AspectRatio(aspect_ratio) => self.aspect_ratio = Some(aspect_ratio),
+                Property::FlexGrow(flex_grow) => self.flex_grow = flex_grow,
+                Property::FlexBasis(flex_basis) => self.flex_basis = flex_basis,
             }
         }
     }
@@ -122,6 +134,9 @@ pub mod general {
                 margin: Rect::all(prop.margin),
                 justify_content: prop.justify,
                 flex_direction: prop.direction,
+                aspect_ratio: prop.aspect_ratio,
+                flex_grow: prop.flex_grow,
+                flex_basis: prop.flex_basis,
                 ..Default::default()
             },
             color: UiColor(prop.colour),
