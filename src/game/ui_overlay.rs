@@ -5,7 +5,7 @@ use crate::helpers::builders::WithSelf;
 use crate::menu_core::menu_core::text::standard_centred_text;
 use crate::menu_core::menu_core::ButtonComponent;
 use bevy::prelude::*;
-use bevy::render::view::VisibleEntities;
+
 
 pub struct GameOverlayPlugin;
 
@@ -120,7 +120,7 @@ fn change_view(
     commands.entity(parent.0).with_children(|parent| {
         match view {
             View::Help => {
-                help_view(parent, font, &image_store);
+                help_view(parent, font, image_store);
             }
             View::Base => {
                 base_view(parent, font);

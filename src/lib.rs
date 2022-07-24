@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 
 use bevy::utils::Duration;
-use bevy::window::WindowId;
-use bevy::winit::WinitWindows;
+
+
 use bevy_ecs_tilemap::TilemapPlugin;
 use bevy_kira_audio::AudioPlugin;
 use log::info;
 
-use winit::window::Icon;
+
 
 mod asset_handling;
 mod game;
@@ -75,7 +75,7 @@ fn setup_window_title(
 }
 
 fn print_window_info(mut windows: ResMut<Windows>) {
-    for mut window in windows.iter_mut() {
+    for window in windows.iter_mut() {
         println!("{:?}", window);
         window.set_resolution(800f32, 550f32);
         println!("{:?}", window);

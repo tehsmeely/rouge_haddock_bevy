@@ -1,5 +1,5 @@
-use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
-use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
+use crate::asset_handling::asset::{TextureAtlasAsset};
+use crate::asset_handling::{TextureAtlasStore};
 use crate::game::components::{
     CanMoveDistance, GameOnly, MapDirection, MoveWeighting, Player, SimpleTileResidentBundle,
     TileResidentBundle,
@@ -163,7 +163,7 @@ pub fn spawn_jelly_lightning(
     let rotation = direction.to_rotation_from_right_zero();
 
     let mut entities = Vec::new();
-    let mut tilepos = start_pos.clone();
+    let mut tilepos = start_pos;
 
     for i in 0..length {
         let index = if i == 0 {

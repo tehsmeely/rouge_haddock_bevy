@@ -483,7 +483,7 @@ impl PlayerDeathAnimation {
         }
     }
     pub fn update(&mut self, transform: &mut Transform, delta: &Duration) -> bool {
-        self.delay = self.delay.saturating_sub(delta.clone());
+        self.delay = self.delay.saturating_sub(*delta);
         if self.delay == Duration::ZERO {
             self.height_pct = clamp(
                 self.height_pct - (delta.as_secs_f32() * self.factor),

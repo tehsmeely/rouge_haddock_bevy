@@ -1,12 +1,12 @@
 use crate::helpers::builders::WithSelf;
-use crate::menu_core::helpers::RectExt;
+
 use bevy::asset::Handle;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::prelude::{Changed, Query, With};
 use bevy::math::{Rect, Size};
 use bevy::prelude::{
     AlignItems, BuildChildren, Button, ButtonBundle, ChildBuilder, Color, Component, Font,
-    Interaction, JustifyContent, NodeBundle, Style, Text, TextBundle, TextStyle, UiColor, Val,
+    Interaction, JustifyContent, Style, Text, TextBundle, TextStyle, UiColor, Val,
 };
 
 pub const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);

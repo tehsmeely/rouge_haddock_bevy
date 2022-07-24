@@ -1,9 +1,9 @@
-use bevy::app::AppExit;
+
 use bevy::prelude::*;
 
 use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
-use crate::game_menus::components::{HubMenuOnly, StoreButton, StoreMenuOnly};
+use crate::game_menus::components::{StoreButton, StoreMenuOnly};
 use crate::menu_core::menu_core;
 use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_text_custom};
 use crate::menu_core::structure::SplitWay;
@@ -43,7 +43,7 @@ fn cost_to_level_up(next_level: usize) -> usize {
 fn maybe_level_up(profile: &mut UserProfile) -> bool {
     // Subtract shell cost
     // Increase level
-    let level_shell_cost = cost_to_level_up((profile.level + 1));
+    let level_shell_cost = cost_to_level_up(profile.level + 1);
     if level_shell_cost <= profile.snail_shells {
         println!("Levelling up!");
         profile.level += 1;

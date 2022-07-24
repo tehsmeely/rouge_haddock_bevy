@@ -2,7 +2,7 @@ use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
 use crate::game::components::*;
 use crate::game::enemy::Enemy;
 use crate::game::events::{InfoEvent, InputEvent};
-use crate::game::game::RegularGameEnable;
+
 use crate::game::tilemap::{HasTileType, TilePosExt};
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
 use crate::map_gen::cell_map::CellMap;
@@ -33,16 +33,16 @@ fn debug_print_input_system(
         Query<(&TilePos, &Transform), With<Player>>,
         Query<&TilePos, With<Enemy>>,
     )>,
-    mut player_health_q: Query<&mut Health, With<Player>>,
-    mut player_charges_q: Query<&mut PowerCharges, With<Player>>,
+    _player_health_q: Query<&mut Health, With<Player>>,
+    _player_charges_q: Query<&mut PowerCharges, With<Player>>,
     input: Res<Input<KeyCode>>,
     mut cell_map: ResMut<CellMap<i32>>,
     mut commands: Commands,
-    mut asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    _asset_server: Res<AssetServer>,
+    _texture_atlases: ResMut<Assets<TextureAtlas>>,
     atlases: Res<TextureAtlasStore>,
     mut info_event_writer: EventWriter<InfoEvent>,
-    image_assets: Res<ImageAssetStore>,
+    _image_assets: Res<ImageAssetStore>,
 ) {
     if input.just_pressed(KeyCode::P) {
         for (trans, global_trans) in query.p0().iter() {

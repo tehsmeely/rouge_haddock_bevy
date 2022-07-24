@@ -43,7 +43,7 @@ impl HookedAnimation {
 
 /// Watches for shrinking player (in vortex) and emits event when hits zero size
 pub fn vortex_animation_system(
-    mut query: Query<&Transform, (Changed<Transform>, With<Player>, With<InVortex>)>,
+    query: Query<&Transform, (Changed<Transform>, With<Player>, With<InVortex>)>,
     mut game_event_writer: EventWriter<GameEvent>,
 ) {
     for transform in query.iter() {

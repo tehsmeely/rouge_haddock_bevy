@@ -5,8 +5,8 @@ use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::main_menu::components::{MenuButton, MenuOnly};
 use crate::menu_core::menu_core;
-use crate::menu_core::menu_core::NORMAL_BUTTON;
-use crate::profiles::profiles::UserProfile;
+
+
 
 pub struct MenuPlugin;
 
@@ -27,7 +27,7 @@ fn button_click_system(
     interaction_query: Query<(&Interaction, &MenuButton), (With<Button>, Changed<Interaction>)>,
     mut app_state: ResMut<State<crate::CoreState>>,
     mut app_exit_events: EventWriter<AppExit>,
-    mut commands: Commands,
+    _commands: Commands,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Clicked {

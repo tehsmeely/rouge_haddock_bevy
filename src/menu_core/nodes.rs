@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use bevy::prelude::{Color, FlexDirection, JustifyContent, NodeBundle, Rect, Size, Style, Val};
-use bevy::ui::UiColor;
+use bevy::prelude::{Color};
+
 
 pub static DEBUG_COLOUR_I: AtomicUsize = AtomicUsize::new(0);
 pub const DEBUG_COLOURS: [Color; 5] = [
@@ -19,7 +19,7 @@ pub fn debug_get_colour() -> Color {
     }
     DEBUG_COLOUR_I.store(i, Ordering::Relaxed);
 
-    let mut c = DEBUG_COLOURS[i].clone();
+    let mut c = DEBUG_COLOURS[i];
     c.set_a(0.1);
     c
 }
@@ -156,7 +156,7 @@ fn get_colour() -> Color {
 }
 
 pub mod horizontal {
-    use super::debug_get_colour;
+    
     use crate::menu_core::nodes::get_colour;
     use bevy::prelude::*;
 
@@ -203,7 +203,7 @@ pub mod horizontal {
 }
 
 pub mod vertical {
-    use super::debug_get_colour;
+    
     use crate::menu_core::nodes::get_colour;
     use bevy::prelude::*;
 

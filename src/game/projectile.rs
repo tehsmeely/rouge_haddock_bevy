@@ -1,6 +1,6 @@
 use super::tilemap::TilePosExt;
-use crate::asset_handling::asset::{ImageAsset, TextureAtlasAsset};
-use crate::asset_handling::{ImageAssetStore, TextureAtlasStore};
+use crate::asset_handling::asset::{TextureAtlasAsset};
+use crate::asset_handling::{TextureAtlasStore};
 use crate::game::components::{
     AnimationTimer, DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType,
 };
@@ -8,14 +8,14 @@ use crate::game::enemy::JellyfishLightningTile;
 use crate::game::events::GameEvent;
 use crate::game::tilemap::HasTileType;
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
-use bevy::asset::{AssetServer, Assets};
+
 use bevy::core::{Time, Timer};
-use bevy::ecs::change_detection::ResMut;
+
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventWriter;
 use bevy::ecs::prelude::{Commands, Local, Query, Res, With};
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component, TextureAtlas};
+use bevy::prelude::{Component};
 use bevy::prelude::{SpriteSheetBundle, Transform};
 use bevy_ecs_tilemap::{MapQuery, TilePos};
 use log::debug;

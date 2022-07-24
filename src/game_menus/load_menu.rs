@@ -1,23 +1,23 @@
-use bevy::app::AppExit;
+
 use bevy::prelude::*;
-use bevy::reflect::erased_serde::private::serde::Serialize;
+
 
 use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::game_menus::components::{LoadButton, LoadMenuOnly};
-use crate::helpers::builders::WithSelf;
+
 use crate::menu_core::helpers::RectExt;
 use crate::menu_core::menu_core;
-use crate::menu_core::menu_core::rect_consts::CENTRED;
+
 use crate::menu_core::menu_core::text::{
-    standard_centred_text, standard_centred_text_custom, TextNodes,
+    standard_centred_text, TextNodes,
 };
 use crate::menu_core::menu_core::{make_button, ButtonComponent};
 use crate::profiles::profiles::{
-    load_profiles_blocking, LoadedUserProfile, LoadingProfileSlotNum, ProfileSlot, UserProfile,
+    load_profiles_blocking, LoadingProfileSlotNum, ProfileSlot,
 };
 use bevy::prelude::{FlexDirection, JustifyContent};
-use num::clamp;
+
 
 pub struct MenuPlugin;
 
@@ -307,7 +307,7 @@ impl ProfilePicker {
         text.sections[0].value = picker_text;
 
         let mut text = text_query.get_mut(self.load_button_entity).unwrap();
-        text.sections[0].value = button_text.into();
+        text.sections[0].value = button_text;
 
         let mut ui_image = image_query.get_mut(self.image_entity).unwrap();
         ui_image.0 = Self::image_from_slot(

@@ -1,17 +1,17 @@
-use bevy::app::AppExit;
+
 use bevy::prelude::*;
-use bevy::reflect::erased_serde::private::serde::Serialize;
+
 use log::info;
 
 use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::game_menus::components::{NewGameButton, NewGameMenuOnly};
 use crate::menu_core::menu_core;
-use crate::menu_core::menu_core::rect_consts::CENTRED;
+
 use crate::menu_core::menu_core::text::{
-    standard_centred_text, standard_centred_text_custom, TextNodes,
+    standard_centred_text, TextNodes,
 };
-use crate::menu_core::menu_core::{make_button, make_button_custom_size, ButtonComponent};
+use crate::menu_core::menu_core::{make_button, make_button_custom_size};
 use crate::menu_core::nodes;
 use crate::profiles::profiles::{
     HaddockVariant, LoadedUserProfile, LoadingProfileSlotNum, UserProfile,
@@ -168,7 +168,7 @@ impl TextInput {
     }
 
     fn backspace(&mut self, text_query: &mut Query<&mut Text>) {
-        if self.current_text.len() > 0 {
+        if !self.current_text.is_empty() {
             self.current_text.pop();
             info!("Backspace. Result: {}", self.current_text);
             self.update(text_query);

@@ -23,14 +23,14 @@ use crate::map_gen::cell_map::CellMap;
 
 use bevy_kira_audio::Audio;
 
-use crate::asset_handling::asset::{AudioAsset, ImageAsset, TextureAtlasAsset};
+use crate::asset_handling::asset::{AudioAsset, TextureAtlasAsset};
 use crate::asset_handling::{AudioAssetStore, ImageAssetStore, TextureAtlasStore};
 use crate::game::end_game::{EndGameHook, EndGameVortex};
 use crate::game::enemy::{Jellyfish, JellyfishLightningTile, JellyfishState};
 use crate::game::projectile::Projectile;
 use crate::game::turn::GlobalLevelCounter;
 use crate::profiles::profiles::LoadedUserProfile;
-use bevy::render::render_resource::Texture;
+
 use bevy::window::WindowResized;
 use rand::Rng;
 use std::time::Duration;
@@ -161,7 +161,7 @@ fn global_turn_counter_system(
     for event in game_event_reader.iter() {
         match event {
             GameEvent::PhaseComplete(phase) => {
-                global_turn_counter.step(&phase);
+                global_turn_counter.step(phase);
                 info!("New Turn: {:?}", global_turn_counter);
             }
             GameEvent::PlayerDied
@@ -246,7 +246,7 @@ fn vortex_spawner_system(
         let not_too_many_enemies = enemy_count < 4;
 
         // Late spawn is dependent on being many turns in and killed *some* enemies
-        let can_late_spawn = (turn_past_threshold || not_too_many_enemies);
+        let can_late_spawn = turn_past_threshold || not_too_many_enemies;
 
         // Early spawn is if all enemies are killed. Turn count stops this accidentally triggering
         // before enemies spawn at start
@@ -282,7 +282,7 @@ fn end_of_game_watcher_system(
     asset_server: Res<AssetServer>,
     cell_map: ResMut<CellMap<i32>>,
     player_query: Query<&TilePos, With<Player>>,
-    enemy_query: Query<Entity, With<Enemy>>,
+    _enemy_query: Query<Entity, With<Enemy>>,
     global_turn_counter: Res<GlobalTurnCounter>,
     hook_query: Query<Entity, With<EndGameHook>>,
 ) {
@@ -624,7 +624,7 @@ fn health_watcher_system(
     mut info_event_writer: EventWriter<InfoEvent>,
     mut commands: Commands,
     mut known_player_hp: Local<Option<usize>>,
-    mut game_event_writer: EventWriter<GameEvent>,
+    _game_event_writer: EventWriter<GameEvent>,
     mut regular_game_enable: ResMut<RegularGameEnable>,
 ) {
     for (entity, health) in enemy_health.iter() {
@@ -664,7 +664,7 @@ fn health_watcher_system(
 fn sfx_system(
     mut info_event_reader: EventReader<InfoEvent>,
     audio: Res<Audio>,
-    assets: Res<AssetServer>,
+    _assets: Res<AssetServer>,
     audio_asset_store: Res<AudioAssetStore>,
 ) {
     // TODO: Move audio to asset system
@@ -724,8 +724,8 @@ fn jellyfish_system(
                 }
                 JellyfishState::Charging(direction) => {
                     let (lightning_length, hit) = super::enemy::jelly_lightning_projection(
-                        &tile_pos,
-                        &direction,
+                        tile_pos,
+                        direction,
                         &player_query,
                         &mut map_query,
                         &tiletype_query,
@@ -772,7 +772,7 @@ fn enemy_system(
         Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     )>,
     mut map_query: MapQuery,
-    mut jellyfish_query: Query<&Jellyfish>,
+    jellyfish_query: Query<&Jellyfish>,
     tile_type_query: Query<&HasTileType>,
 ) {
     let player_position = *move_query.p0().get_single().unwrap();
@@ -860,12 +860,12 @@ fn player_movement_system(
                     let (player_entity, current_pos) = {
                         let q = move_query.p0();
                         let (player_entity, current_pos) = q.get_single().unwrap();
-                        (player_entity.clone(), current_pos.clone())
+                        (player_entity, *current_pos)
                     };
 
                     let move_decision = super::movement::decide_move(
                         &current_pos,
-                        &direction,
+                        direction,
                         1,
                         &AttackCriteria::for_player(),
                         move_query.p1(),
@@ -982,7 +982,7 @@ fn setup(
     images: Res<Assets<Image>>,
     loaded_profile: Res<LoadedUserProfile>,
     windows: Res<Windows>,
-    mut input: ResMut<Input<KeyCode>>,
+    _input: ResMut<Input<KeyCode>>,
 ) {
     let border_size = 20usize;
     let cell_map: CellMap<i32> = {
@@ -1011,7 +1011,7 @@ fn setup(
     commands
         .spawn_bundle(TileResidentBundle::new(
             loaded_profile.user_profile.max_health(),
-            start_point.clone(),
+            start_point,
             atlas_handle,
             1,
         ))
@@ -1032,7 +1032,7 @@ fn setup(
         Some(&spawned_positions),
     );
     spawned_positions.extend_from_slice(&crab_positions[..]);
-    let jelly_positions = super::enemy::add_jellyfish(
+    let _jelly_positions = super::enemy::add_jellyfish(
         &mut commands,
         &texture_atlas_store,
         1,
@@ -1040,7 +1040,7 @@ fn setup(
         Some(&spawned_positions),
     );
     spawned_positions.extend_from_slice(&crab_positions[..]);
-    let (snail_num, snail_positions) = super::snails::choose_number_of_and_spawn_snails(
+    let (snail_num, _snail_positions) = super::snails::choose_number_of_and_spawn_snails(
         &mut commands,
         &texture_atlas_store,
         &cell_map,
