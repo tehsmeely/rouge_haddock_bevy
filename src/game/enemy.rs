@@ -1,5 +1,5 @@
-use crate::asset_handling::asset::{TextureAtlasAsset};
-use crate::asset_handling::{TextureAtlasStore};
+use crate::asset_handling::asset::TextureAtlasAsset;
+use crate::asset_handling::TextureAtlasStore;
 use crate::game::components::{
     CanMoveDistance, GameOnly, MapDirection, MoveWeighting, Player, SimpleTileResidentBundle,
     TileResidentBundle,
@@ -187,7 +187,7 @@ pub fn spawn_jelly_lightning(
             })
             .insert(GameOnly)
             .insert(JellyfishLightningTile)
-            .insert(TimedDespawn::new(Duration::from_millis(400)))
+            .insert(TimedDespawn::new(Duration::from_millis(200)))
             .id();
         entities.push(entity);
         tilepos = tilepos.add(direction.to_pos_move());

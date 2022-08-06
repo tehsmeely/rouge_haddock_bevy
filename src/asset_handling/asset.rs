@@ -45,7 +45,7 @@ pub enum AudioAsset {
 impl AssetClass for AudioAsset {
     fn to_filename(&self) -> &str {
         match self {
-            Self::JellyLightning => "audio/512471__michael-grinnell__electric-zap.wav",
+            Self::JellyLightning => "audio/512471__michael-grinnell__electric-zap.quiet.wav",
             Self::Hurt => "audio/342229__christopherderp__hurt-1-male.wav",
             Self::Chomp => "audio/carrotnom.wav",
             Self::FishSlap => "audio/fish_slap.ogg",
