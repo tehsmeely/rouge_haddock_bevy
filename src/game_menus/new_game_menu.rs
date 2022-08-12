@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use log::info;
@@ -8,9 +7,7 @@ use crate::asset_handling::ImageAssetStore;
 use crate::game_menus::components::{NewGameButton, NewGameMenuOnly};
 use crate::menu_core::menu_core;
 
-use crate::menu_core::menu_core::text::{
-    standard_centred_text, TextNodes,
-};
+use crate::menu_core::menu_core::text::{standard_centred_text, TextNodes};
 use crate::menu_core::menu_core::{make_button, make_button_custom_size};
 use crate::menu_core::nodes;
 use crate::profiles::profiles::{
@@ -79,10 +76,6 @@ fn menu_setup(
 ) {
     println!("NewGameMenu Setup Start");
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
-    // ui camera
-    commands
-        .spawn_bundle(UiCameraBundle::default())
-        .insert(NewGameMenuOnly {});
 
     let mut text_input = None;
     commands

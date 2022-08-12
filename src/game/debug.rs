@@ -3,11 +3,11 @@ use crate::game::components::*;
 use crate::game::enemy::Enemy;
 use crate::game::events::{InfoEvent, InputEvent};
 
-use crate::game::tilemap::{HasTileType, TilePosExt};
+use crate::game::tilemap::{HasTileType, TilePosExt, TileStorageQuery};
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
 use crate::map_gen::cell_map::CellMap;
 use bevy::prelude::*;
-use bevy_ecs_tilemap::{MapQuery, TilePos};
+use bevy_ecs_tilemap::tiles::TilePos;
 
 pub struct GameDebugPlugin;
 
@@ -69,7 +69,7 @@ fn debug_print_input_system(
             .collect::<Vec<(i32, i32)>>();
         let start_point = {
             let q = query.p2();
-            let (TilePos(x, y), _trans) = q.single();
+            let (TilePos { x, y }, _trans) = q.single();
             (*x as i32, *y as i32)
         };
         let recalculated_map = cell_map.recalculate(start_point);
@@ -106,7 +106,7 @@ fn input_event_debug_system(
 fn mouse_click_debug_system(
     mut mouse_event_reader: EventReader<MouseClickEvent>,
     tile_type_query: Query<&HasTileType>,
-    mut map_query: MapQuery,
+    tile_storage_query: TileStorageQuery,
 ) {
     for MouseClickEvent {
         button,
@@ -115,9 +115,10 @@ fn mouse_click_debug_system(
     {
         if button == &MouseButton::Left {
             let tile_pos = TilePos::from_world_pos(world_position.x, world_position.y);
-            let tile_entity = map_query.get_tile_entity(tile_pos, 0, 0).unwrap();
-            let tile_type = tile_type_query.get(tile_entity).unwrap();
-            println!("Clicked {:?} ({:?})", tile_pos, tile_type);
+            let tile_entity = tile_storage_query.single().get(&tile_pos).unwrap();
+            if let Ok(tile_type) = tile_type_query.get(tile_entity) {
+                println!("Clicked {:?} ({:?})", tile_pos, tile_type);
+            }
         }
     }
 }

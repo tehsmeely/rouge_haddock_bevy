@@ -1,7 +1,8 @@
 use crate::game::tilemap::TilePosExt;
 use bevy::prelude::*;
 use bevy::utils::Duration;
-use bevy_ecs_tilemap::{Tile, TilePos};
+use bevy_ecs_tilemap::tiles::TilePos;
+use bevy_ecs_tilemap::tiles::TileTexture;
 use interpolation::Lerp;
 use num::clamp;
 use rand::Rng;
@@ -96,8 +97,8 @@ impl MapDirection {
         target_pos: &TilePos,
         external_weights: &MoveWeighting,
     ) -> Self {
-        let dx = target_pos.0 as isize - from_pos.0 as isize;
-        let dy = target_pos.1 as isize - from_pos.1 as isize;
+        let dx = target_pos.x as isize - from_pos.y as isize;
+        let dy = target_pos.y as isize - from_pos.y as isize;
         let mut costs = HashMap::new();
         if dx.abs() > dy.abs() {
             pick_left_right(dx, 4f32, 1f32, &mut costs);
@@ -453,17 +454,11 @@ impl TileType {
 }
 
 impl TileType {
-    pub fn to_raw_tile(&self) -> Tile {
-        match self {
-            Self::WATER => Tile {
-                texture_index: 0,
-                ..Default::default()
-            },
-            Self::WALL => Tile {
-                texture_index: 1,
-                ..Default::default()
-            },
-        }
+    pub fn to_raw_tile(&self) -> TileTexture {
+        TileTexture(match self {
+            Self::WATER => 0,
+            Self::WALL => 1,
+        })
     }
 }
 

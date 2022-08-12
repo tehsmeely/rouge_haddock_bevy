@@ -1,37 +1,32 @@
-use bevy::prelude::*;
-use bevy::reflect::Map;
-use bevy_ecs_tilemap::{MapQuery, TilePos};
-use code_location::code_location;
-use log::info;
-
-use crate::helpers::error_handling::ResultOkLog;
-
 use super::{
     components::*,
     enemy::Enemy,
     events::{GameEvent, InputEvent},
-    tilemap::{HasTileType, TilePosExt},
+    tilemap::{HasTileType, TilePosExt, TileStorageQuery},
     timed_removal::{TimedRemoval, TimedRemovalPlugin},
     turn::{GamePhase, GlobalTurnCounter, TurnCounter},
 };
-use crate::game::events::{InfoEvent, PowerEvent};
-use crate::game::movement::{AttackCriteria, MoveDecisions};
-
-use crate::game::ui::GameUiPlugin;
-use crate::helpers::cleanup::recursive_cleanup;
-use crate::map_gen::cell_map::CellMap;
-
-use bevy_kira_audio::Audio;
-
 use crate::asset_handling::asset::{AudioAsset, TextureAtlasAsset};
 use crate::asset_handling::{AudioAssetStore, ImageAssetStore, TextureAtlasStore};
-use crate::game::end_game::{EndGameHook, EndGameVortex};
+use crate::game::end_game::{EndGameHook, EndGameVortex, InHook, InVortex};
 use crate::game::enemy::{Jellyfish, JellyfishLightningTile, JellyfishState};
+use crate::game::events::{InfoEvent, PowerEvent};
+use crate::game::movement::{AttackCriteria, MoveDecisions};
 use crate::game::projectile::Projectile;
 use crate::game::turn::GlobalLevelCounter;
+use crate::game::ui::GameUiPlugin;
+use crate::helpers::cleanup::recursive_cleanup;
+use crate::helpers::error_handling::ResultOkLog;
+use crate::map_gen::cell_map::CellMap;
 use crate::profiles::profiles::LoadedUserProfile;
 
+use bevy::prelude::*;
+use bevy::reflect::Map;
 use bevy::window::WindowResized;
+use bevy_ecs_tilemap::tiles::TilePos;
+use bevy_kira_audio::Audio;
+use code_location::code_location;
+use log::info;
 use rand::Rng;
 use std::time::Duration;
 
@@ -101,6 +96,10 @@ impl Plugin for GamePlugin {
             )
             .add_system_set(
                 SystemSet::on_enter(crate::CoreState::GameLevelTransition)
+                    .with_system(game_level_transition_enter),
+            )
+            .add_system_set(
+                SystemSet::on_update(crate::CoreState::GameLevelTransition)
                     .with_system(game_level_transition),
             )
             .add_plugin(TimedRemovalPlugin)
@@ -145,12 +144,12 @@ fn state_cleanup(mut global_turn_counter: ResMut<GlobalTurnCounter>) {
     global_turn_counter.reset();
 }
 
-fn game_level_transition(
-    mut state: ResMut<State<crate::CoreState>>,
-    mut global_level_counter: ResMut<GlobalLevelCounter>,
-) {
-    info!("Game Level Transition!");
+fn game_level_transition_enter(mut global_level_counter: ResMut<GlobalLevelCounter>) {
+    info!("Game Level Transition enter!");
     global_level_counter.increment();
+}
+fn game_level_transition(mut state: ResMut<State<crate::CoreState>>) {
+    info!("Game Level Transition!\nState:{:?}", state);
     state.set(crate::CoreState::GameLevel).unwrap();
 }
 
@@ -266,7 +265,10 @@ fn vortex_spawner_system(
                 .first()
                 .unwrap()
                 .to_owned();
-            TilePos(x as u32, y as u32)
+            TilePos {
+                x: x as u32,
+                y: y as u32,
+            }
         };
         super::end_game::spawn_vortex(&mut commands, spawn_pos, &image_store);
         // TODO: Trigger sound
@@ -309,7 +311,10 @@ fn end_of_game_watcher_system(
                 .first()
                 .unwrap()
                 .to_owned();
-            TilePos(x as u32, y as u32)
+            TilePos {
+                x: x as u32,
+                y: y as u32,
+            }
         };
         super::end_game::spawn_hook(
             &mut meshes,
@@ -429,27 +434,33 @@ fn camera_follow_system(
         Query<(&Transform, &CameraFollow)>,
         Query<&mut Transform, With<GameCamera>>,
     )>,
+    non_follow_query: Query<Entity, (With<Player>, Or<(With<InVortex>, With<InHook>)>)>,
 ) {
-    let pos = query
-        .p0()
-        .get_single()
-        .ok_log(code_location!())
-        .map(|(transform, follow)| {
-            (
-                transform.translation.x,
-                transform.translation.y,
-                follow.x_threshold,
-                follow.y_threshold,
-            )
-        });
+    // Non_follow_query is populated by the player entity if they are ever in a state where
+    // we wouldn't want to follow them
+    if non_follow_query.is_empty() {
+        let pos = query
+            .p0()
+            .get_single()
+            .ok_log(code_location!())
+            .map(|(transform, follow)| {
+                (
+                    transform.translation.x,
+                    transform.translation.y,
+                    follow.x_threshold,
+                    follow.y_threshold,
+                )
+            });
 
-    if let Some((x, y, x_threshold, y_threshold)) = pos {
-        if let Some(mut camera_transform) = query.p1().get_single_mut().ok_log(code_location!()) {
-            if (x - camera_transform.translation.x).abs() > x_threshold {
-                camera_transform.translation.x = x
-            }
-            if (y - camera_transform.translation.y).abs() > y_threshold {
-                camera_transform.translation.y = y
+        if let Some((x, y, x_threshold, y_threshold)) = pos {
+            if let Some(mut camera_transform) = query.p1().get_single_mut().ok_log(code_location!())
+            {
+                if (x - camera_transform.translation.x).abs() > x_threshold {
+                    camera_transform.translation.x = x
+                }
+                if (y - camera_transform.translation.y).abs() > y_threshold {
+                    camera_transform.translation.y = y
+                }
             }
         }
     }
@@ -576,13 +587,25 @@ fn gamepad_input_handle_system(
     // TODO: Flesh this out and add proper gamepad support eventually
     for gamepad in gamepads.iter().cloned() {
         let new_direction = {
-            if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadLeft)) {
+            if input.just_pressed(GamepadButton {
+                gamepad,
+                button_type: GamepadButtonType::DPadLeft,
+            }) {
                 Some(MapDirection::Left)
-            } else if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadRight)) {
+            } else if input.just_pressed(GamepadButton {
+                gamepad,
+                button_type: GamepadButtonType::DPadRight,
+            }) {
                 Some(MapDirection::Right)
-            } else if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadUp)) {
+            } else if input.just_pressed(GamepadButton {
+                gamepad,
+                button_type: GamepadButtonType::DPadUp,
+            }) {
                 Some(MapDirection::Up)
-            } else if input.just_pressed(GamepadButton(gamepad, GamepadButtonType::DPadDown)) {
+            } else if input.just_pressed(GamepadButton {
+                gamepad,
+                button_type: GamepadButtonType::DPadDown,
+            }) {
                 Some(MapDirection::Down)
             } else {
                 None
@@ -708,7 +731,7 @@ fn jellyfish_system(
     mut info_event_writer: EventWriter<InfoEvent>,
     player_query: Query<(Entity, &TilePos), With<Player>>,
     mut health_query: Query<&mut Health>,
-    mut map_query: MapQuery,
+    mut tile_storage_query: TileStorageQuery,
     tiletype_query: Query<&HasTileType>,
 ) {
     if global_turn_counter.can_take_turn(&mut local_turn_counter, GamePhase::PreEnemyMovement) {
@@ -727,7 +750,7 @@ fn jellyfish_system(
                         tile_pos,
                         direction,
                         &player_query,
-                        &mut map_query,
+                        &tile_storage_query,
                         &tiletype_query,
                     );
                     if lightning_length > 0 {
@@ -771,7 +794,7 @@ fn enemy_system(
         Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
         Query<(&mut TilePos, &mut MovementAnimate, &Transform, &mut Facing)>,
     )>,
-    mut map_query: MapQuery,
+    mut tile_storage_query: TileStorageQuery,
     jellyfish_query: Query<&Jellyfish>,
     tile_type_query: Query<&HasTileType>,
 ) {
@@ -796,7 +819,7 @@ fn enemy_system(
                 can_move_distance.get(&direction),
                 &attack_criteria,
                 move_query.p2(),
-                &mut map_query,
+                &tile_storage_query,
                 &tile_type_query,
                 &moved_to,
             );
@@ -821,7 +844,7 @@ fn player_movement_watcher(
 ) {
     if let Ok(player_tilepos) = player_position_query.get_single() {
         match *known_player_position {
-            Some(pos) if pos != *player_tilepos => {
+            Some(pos) if !(pos.eq(player_tilepos)) => {
                 if regular_game_enable.enabled {
                     info_event_writer.send(InfoEvent::PlayerMoved);
                 } else {
@@ -847,7 +870,7 @@ fn player_movement_system(
     mut power_query: Query<&mut PowerCharges, With<Player>>,
     mut health_query: Query<&mut Health>,
     tile_type_query: Query<&HasTileType>,
-    mut map_query: MapQuery,
+    tile_storage_query: TileStorageQuery,
     global_turn_counter: Res<GlobalTurnCounter>,
     mut local_turn_counter: Local<TurnCounter>,
 ) {
@@ -863,16 +886,20 @@ fn player_movement_system(
                         (player_entity, *current_pos)
                     };
 
+                    info!("Player requested MoveDirection({:?})", direction);
+
                     let move_decision = super::movement::decide_move(
                         &current_pos,
                         direction,
                         1,
                         &AttackCriteria::for_player(),
                         move_query.p1(),
-                        &mut map_query,
+                        &tile_storage_query,
                         &tile_type_query,
                         &vec![],
                     );
+
+                    info!("Player move decision: {:?}", move_decision);
 
                     super::movement::apply_move_single(
                         player_entity,
@@ -939,7 +966,7 @@ fn player_power_system(
     mut commands: Commands,
     atlases: Res<TextureAtlasStore>,
     mut power_event_reader: EventReader<PowerEvent>,
-    mut map_query: MapQuery,
+    tile_storage_query: TileStorageQuery,
     tile_type_query: Query<&HasTileType>,
 ) {
     for event in power_event_reader.iter() {
@@ -954,7 +981,7 @@ fn player_power_system(
                     &tilepos,
                     &direction,
                     &query.p1(),
-                    &mut map_query,
+                    &tile_storage_query,
                     &tile_type_query,
                     true,
                 );
@@ -977,7 +1004,6 @@ fn setup(
     mut commands: Commands,
     image_assets: Res<ImageAssetStore>,
     texture_atlas_store: Res<TextureAtlasStore>,
-    map_query: MapQuery,
     global_level_counter: Res<GlobalLevelCounter>,
     images: Res<Assets<Image>>,
     loaded_profile: Res<LoadedUserProfile>,
@@ -993,19 +1019,23 @@ fn setup(
     super::tilemap::init_tilemap(
         &mut commands,
         &image_assets,
-        map_query,
         &cell_map,
         border_size,
         &images,
     );
+    /*
     commands
         .spawn_bundle(OrthographicCameraBundle::new_2d())
         .insert(GameOnly)
         .insert(GameCamera);
+     */
     let atlas_handle = texture_atlas_store.get(&TextureAtlasAsset::HaddockSpritesheet);
     let start_point = {
         let start_point = cell_map.start_point().unwrap_or((1, 1));
-        TilePos(start_point.0 as u32, start_point.1 as u32)
+        TilePos {
+            x: start_point.0 as u32,
+            y: start_point.1 as u32,
+        }
     };
     let camera_follow = CameraFollow::from_window(windows.primary());
     commands

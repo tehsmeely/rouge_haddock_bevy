@@ -1,8 +1,8 @@
 use crate::game::components::{Facing, Health, MapDirection, MovementAnimate, Player};
 use crate::game::enemy::Enemy;
-use crate::game::tilemap::{HasTileType, TilePosExt};
+use crate::game::tilemap::{HasTileType, TilePosExt, TileStorageQuery};
 use bevy::prelude::*;
-use bevy_ecs_tilemap::{MapQuery, TilePos};
+use bevy_ecs_tilemap::tiles::TilePos;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -86,7 +86,7 @@ pub fn decide_move(
     max_move_distance: usize,
     attack_criteria: &AttackCriteria,
     move_query: Query<(Entity, &TilePos, Option<&Player>, Option<&Enemy>)>,
-    map_query: &mut MapQuery,
+    tile_storage_query: &TileStorageQuery,
     tile_type_query: &Query<&HasTileType>,
     additional_ignore_tilepos: &Vec<TilePos>,
 ) -> MoveDecision {
@@ -113,8 +113,9 @@ pub fn decide_move(
             break;
         }
 
-        let new_tile_entity = map_query
-            .get_tile_entity(*destination_tilepos, 0, 0)
+        let new_tile_entity = tile_storage_query
+            .single()
+            .get(destination_tilepos)
             .unwrap();
         let can_move = match tile_type_query.get(new_tile_entity) {
             Ok(HasTileType(tt)) => tt.can_enter(),

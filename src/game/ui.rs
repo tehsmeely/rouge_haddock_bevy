@@ -31,7 +31,6 @@ impl Plugin for GameUiPlugin {
 fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
     let banner_height = Val::Px(40.0);
-    commands.spawn_bundle(UiCameraBundle::default());
     let mut root_node = None;
     commands
         .spawn_bundle(crate::menu_core::nodes::vertical::full())
@@ -41,7 +40,7 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 .spawn_bundle(NodeBundle {
                     style: Style {
                         size: Size::new(Val::Percent(100.0), banner_height),
-                        margin: Rect::all(Val::Px(0.0)),
+                        margin: UiRect::all(Val::Px(0.0)),
                         justify_content: JustifyContent::FlexStart,
                         flex_direction: FlexDirection::RowReverse,
                         ..Default::default()
@@ -136,7 +135,7 @@ mod ui_components {
             .spawn_bundle(NodeBundle {
                 style: Style {
                     size: Size::new(Val::Px(100.0), *banner_height),
-                    margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
+                    margin: UiRect::new_2(Val::Px(0.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     flex_direction: FlexDirection::ColumnReverse,
                     flex_grow: 0.0,
@@ -148,18 +147,18 @@ mod ui_components {
             .with_children(|parent| {
                 parent
                     .spawn_bundle(TextBundle {
-                        text: Text::with_section(
+                        text: Text::from_section(
                             "",
                             TextStyle {
                                 font,
                                 font_size: 35.0,
                                 color: Color::rgb(0.0, 0.0, 0.0),
                             },
-                            TextAlignment {
-                                vertical: VerticalAlign::Center,
-                                horizontal: HorizontalAlign::Center,
-                            },
-                        ),
+                        )
+                        .with_alignment(TextAlignment {
+                            vertical: VerticalAlign::Center,
+                            horizontal: HorizontalAlign::Center,
+                        }),
                         style: Style {
                             flex_grow: 1.0,
                             justify_content: JustifyContent::Center,
@@ -180,7 +179,7 @@ mod ui_components {
             .spawn_bundle(NodeBundle {
                 style: Style {
                     size: Size::new(Val::Px(200.0), *banner_height),
-                    margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
+                    margin: UiRect::new_2(Val::Px(0.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     flex_direction: FlexDirection::ColumnReverse,
                     flex_grow: 0.0,
@@ -192,18 +191,18 @@ mod ui_components {
             .with_children(|parent| {
                 parent
                     .spawn_bundle(TextBundle {
-                        text: Text::with_section(
+                        text: Text::from_section(
                             "",
                             TextStyle {
                                 font,
                                 font_size: 35.0,
                                 color: Color::rgb(0.0, 0.0, 0.0),
                             },
-                            TextAlignment {
-                                vertical: VerticalAlign::Center,
-                                horizontal: HorizontalAlign::Center,
-                            },
-                        ),
+                        )
+                        .with_alignment(TextAlignment {
+                            vertical: VerticalAlign::Center,
+                            horizontal: HorizontalAlign::Center,
+                        }),
                         style: Style {
                             flex_grow: 1.0,
                             justify_content: JustifyContent::Center,
@@ -220,7 +219,7 @@ mod ui_components {
             .spawn_bundle(NodeBundle {
                 style: Style {
                     size: Size::new(Val::Px(200.0), *banner_height),
-                    margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
+                    margin: UiRect::new_2(Val::Px(0.0), Val::Px(10.0)),
                     justify_content: JustifyContent::FlexStart,
                     flex_direction: FlexDirection::Column,
                     flex_grow: 1.0,
@@ -234,7 +233,7 @@ mod ui_components {
                     .spawn_bundle(NodeBundle {
                         style: Style {
                             size: Size::new(Val::Px(150.0), *banner_height),
-                            margin: Rect::new_2(Val::Px(0.0), Val::Px(10.0)),
+                            margin: UiRect::new_2(Val::Px(0.0), Val::Px(10.0)),
                             justify_content: JustifyContent::Center,
                             flex_direction: FlexDirection::ColumnReverse,
                             flex_grow: 0.0,
@@ -247,18 +246,18 @@ mod ui_components {
                     .with_children(|parent| {
                         parent
                             .spawn_bundle(TextBundle {
-                                text: Text::with_section(
+                                text: Text::from_section(
                                     "",
                                     TextStyle {
                                         font,
                                         font_size: 35.0,
                                         color: Color::rgb(0.0, 0.0, 0.0),
                                     },
-                                    TextAlignment {
-                                        vertical: VerticalAlign::Center,
-                                        horizontal: HorizontalAlign::Center,
-                                    },
-                                ),
+                                )
+                                .with_alignment(TextAlignment {
+                                    vertical: VerticalAlign::Center,
+                                    horizontal: HorizontalAlign::Center,
+                                }),
                                 style: Style {
                                     flex_grow: 1.0,
                                     justify_content: JustifyContent::Center,

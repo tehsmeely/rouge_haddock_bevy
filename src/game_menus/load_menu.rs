@@ -1,6 +1,4 @@
-
 use bevy::prelude::*;
-
 
 use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
@@ -9,15 +7,10 @@ use crate::game_menus::components::{LoadButton, LoadMenuOnly};
 use crate::menu_core::helpers::RectExt;
 use crate::menu_core::menu_core;
 
-use crate::menu_core::menu_core::text::{
-    standard_centred_text, TextNodes,
-};
+use crate::menu_core::menu_core::text::{standard_centred_text, TextNodes};
 use crate::menu_core::menu_core::{make_button, ButtonComponent};
-use crate::profiles::profiles::{
-    load_profiles_blocking, LoadingProfileSlotNum, ProfileSlot,
-};
+use crate::profiles::profiles::{load_profiles_blocking, LoadingProfileSlotNum, ProfileSlot};
 use bevy::prelude::{FlexDirection, JustifyContent};
-
 
 pub struct MenuPlugin;
 
@@ -103,10 +96,6 @@ fn menu_setup(
     println!("LoadMenu Setup Start");
     let loaded_profiles = load_profiles_blocking();
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
-    // ui camera
-    commands
-        .spawn_bundle(UiCameraBundle::default())
-        .insert(LoadMenuOnly);
 
     println!("LoadMenu Setup Middle");
     let mut profile_picker = None;
@@ -252,7 +241,7 @@ impl ProfilePicker {
                                                     Val::Px(image_size),
                                                     Val::Px(image_size),
                                                 ),
-                                                margin: Rect::new_2(Val::Px(0f32), Val::Auto),
+                                                margin: UiRect::new_2(Val::Px(0f32), Val::Auto),
                                                 ..Default::default()
                                             },
                                             image: UiImage(Self::image_from_slot(

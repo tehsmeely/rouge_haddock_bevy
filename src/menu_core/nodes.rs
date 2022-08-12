@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use bevy::prelude::{Color};
-
+use bevy::prelude::Color;
 
 pub static DEBUG_COLOUR_I: AtomicUsize = AtomicUsize::new(0);
 pub const DEBUG_COLOURS: [Color; 5] = [
@@ -131,7 +130,7 @@ pub mod general {
         NodeBundle {
             style: Style {
                 size: Size::new(prop.width, prop.height),
-                margin: Rect::all(prop.margin),
+                margin: UiRect::all(prop.margin),
                 justify_content: prop.justify,
                 flex_direction: prop.direction,
                 aspect_ratio: prop.aspect_ratio,
@@ -156,7 +155,7 @@ fn get_colour() -> Color {
 }
 
 pub mod horizontal {
-    
+
     use crate::menu_core::nodes::get_colour;
     use bevy::prelude::*;
 
@@ -164,7 +163,7 @@ pub mod horizontal {
         NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::Center,
                 flex_direction: FlexDirection::Row,
                 ..Default::default()
@@ -177,7 +176,7 @@ pub mod horizontal {
         NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(50.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::Center,
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
@@ -190,7 +189,7 @@ pub mod horizontal {
         NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(0.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::Center,
                 flex_direction: FlexDirection::Column,
                 flex_grow: 0_f32,
@@ -203,7 +202,7 @@ pub mod horizontal {
 }
 
 pub mod vertical {
-    
+
     use crate::menu_core::nodes::get_colour;
     use bevy::prelude::*;
 
@@ -223,7 +222,7 @@ pub mod vertical {
         NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::FlexStart,
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
@@ -237,7 +236,7 @@ pub mod vertical {
         NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(50.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::FlexStart,
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
@@ -250,7 +249,7 @@ pub mod vertical {
         NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(0.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::FlexStart,
                 flex_direction: FlexDirection::Row,
                 flex_grow: 0_f32,

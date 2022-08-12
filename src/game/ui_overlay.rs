@@ -6,7 +6,6 @@ use crate::menu_core::menu_core::text::standard_centred_text;
 use crate::menu_core::menu_core::ButtonComponent;
 use bevy::prelude::*;
 
-
 pub struct GameOverlayPlugin;
 
 #[derive(Debug, Component)]
@@ -159,7 +158,7 @@ fn menu_setup(
             .spawn_bundle(NodeBundle {
                 style: Style {
                     size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                    margin: Rect::all(Val::Auto),
+                    margin: UiRect::all(Val::Auto),
                     justify_content: JustifyContent::Center,
                     flex_direction: FlexDirection::Column,
                     ..Default::default()

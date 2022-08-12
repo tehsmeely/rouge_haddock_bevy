@@ -6,8 +6,6 @@ use crate::asset_handling::ImageAssetStore;
 use crate::main_menu::components::{MenuButton, MenuOnly};
 use crate::menu_core::menu_core;
 
-
-
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
@@ -47,16 +45,12 @@ fn menu_setup(
     image_assets: Res<ImageAssetStore>,
 ) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
-    // ui camera
-    commands
-        .spawn_bundle(UiCameraBundle::default())
-        .insert(MenuOnly);
 
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::Center,
                 flex_direction: FlexDirection::Column,
                 ..Default::default()

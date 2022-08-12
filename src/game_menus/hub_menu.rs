@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use crate::asset_handling::asset::ImageAsset;
@@ -8,7 +7,6 @@ use crate::menu_core::menu_core::rect_consts::CENTRED;
 use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_text_custom};
 use crate::menu_core::{menu_core, nodes};
 use crate::profiles::profiles::{LoadedUserProfile, UserProfile};
-
 
 pub struct MenuPlugin;
 
@@ -56,10 +54,6 @@ fn menu_setup(
 
     // Always save on loading in
     loaded_profile.save();
-    // ui camera
-    commands
-        .spawn_bundle(UiCameraBundle::default())
-        .insert(HubMenuOnly);
 
     commands
         .spawn_bundle(nodes::general::new(nodes::general::defaults::full(

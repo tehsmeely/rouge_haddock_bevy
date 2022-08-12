@@ -8,6 +8,11 @@ use crate::asset_handling::ImageAssetStore;
 use crate::game::components::TileType;
 use crate::map_gen::cell_map::CellMap;
 
+pub type TileStorageQuery<'w, 's> = Query<'w, 's, &'static TileStorage, ()>;
+
+#[derive(Component)]
+pub struct TileMapOnly;
+
 pub trait TilePosExt {
     fn add(&self, add: (i32, i32)) -> Self;
 
@@ -23,27 +28,24 @@ pub trait TilePosExt {
 }
 impl TilePosExt for TilePos {
     fn add(&self, add: (i32, i32)) -> Self {
-        Self(
-            helpers::add(self.0, add.0).unwrap(),
-            helpers::add(self.1, add.1).unwrap(),
-        )
+        Self {
+            x: helpers::add(self.x, add.0).unwrap(),
+            y: helpers::add(self.y, add.1).unwrap(),
+        }
     }
 
-    fn as_vec2(&self) -> Vec2 {
-        Vec2::new(self.0 as f32, self.1 as f32)
+    fn distance_to(&self, other: &Self) -> usize {
+        let dist = self.x.abs_diff(other.x) + self.y.abs_diff(other.y);
+        dist as usize
     }
-    fn as_i32s(&self) -> (i32, i32) {
-        (self.0 as i32, self.1 as i32)
-    }
-
     fn to_world_pos(&self, z: f32) -> Vec3 {
         // TODO: Support some "world_config" param to do cell size and 0,0 offset
         let x_offset = 0.0;
         let y_offset = 0.0;
         let centre_x_offset = 32.0;
         let centre_y_offset = 32.0;
-        let x = self.0 as f32 * 64.0;
-        let y = self.1 as f32 * 64.0;
+        let x = self.x as f32 * 64.0;
+        let y = self.y as f32 * 64.0;
         Vec3::new(
             x + x_offset + centre_x_offset,
             y + y_offset + centre_y_offset,
@@ -62,29 +64,36 @@ impl TilePosExt for TilePos {
         let x = (x - x_offset).div_euclid(x_size);
         let y = (y - y_offset).div_euclid(y_size);
         if x >= 0.0 && y >= 0.0 {
-            Self(x as u32, y as u32)
+            Self {
+                x: x as u32,
+                y: y as u32,
+            }
         } else {
-            Self(0, 0)
+            Self { x: 0, y: 0 }
         }
     }
 
-    fn distance_to(&self, other: &Self) -> usize {
-        let dist = self.0.abs_diff(other.0) + self.1.abs_diff(other.1);
-        dist as usize
+    fn as_vec2(&self) -> Vec2 {
+        Vec2::new(self.x as f32, self.y as f32)
+    }
+
+    fn as_i32s(&self) -> (i32, i32) {
+        (self.x as i32, self.y as i32)
     }
 }
 
 #[derive(Debug, Component)]
 pub struct HasTileType(pub TileType);
 
-pub fn cleanup(mut commands: Commands, mut map_query: MapQuery) {
-    map_query.despawn(&mut commands, 0);
+pub fn cleanup(mut commands: Commands, tilemap_only_query: Query<Entity, With<TileMapOnly>>) {
+    for entity in tilemap_only_query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }
 
 pub fn init_tilemap(
     commands: &mut Commands,
     image_assets: &Res<ImageAssetStore>,
-    mut map_query: MapQuery,
     cell_map: &CellMap<i32>,
     border_size: usize,
     images: &Assets<Image>,
@@ -92,11 +101,10 @@ pub fn init_tilemap(
     let texture_handle = image_assets.get(&ImageAsset::TileMapSpritesheet);
 
     info!("Tilemap Init!");
-    info!("Texture: {:?}", images.get(texture_handle.clone()));
+    info!("Texture: {:?}", images.get(&texture_handle));
 
     // Create map entity and component:
     let map_entity = commands.spawn().id();
-    let mut map = Map::new(0u16, map_entity);
 
     let square_chunk_size = 8u32;
     let map_tile_dims = {
@@ -106,26 +114,57 @@ pub fn init_tilemap(
         println!("Rect Size: {:?}, World Size: {:?}", rect_size, (w, h));
         (w as u32, h as u32)
     };
+
+    // Map chunk dims should be the map tile rounded up to the nearest multiple of square_chunk size
     let map_chunk_dims = (
         map_tile_dims.0.div_ceil(&square_chunk_size),
         map_tile_dims.1.div_ceil(&square_chunk_size),
     );
 
-    // Creates a new layer builder with a layer entity.
-    let (mut layer_builder, _): (LayerBuilder<TileBundle>, Entity) = LayerBuilder::new(
-        commands,
-        LayerSettings::new(
-            MapSize(map_chunk_dims.0, map_chunk_dims.1),
-            ChunkSize(square_chunk_size, square_chunk_size),
-            TileSize(64.0, 64.0),
-            TextureSize(128.0, 64.0),
-        ),
-        0u16,
-        0u16,
+    let _tilemap_size = TilemapSize {
+        x: map_chunk_dims.0,
+        y: map_chunk_dims.1,
+    };
+    let tilemap_size = TilemapSize {
+        x: map_tile_dims.0,
+        y: map_tile_dims.1,
+    };
+
+    let grid_size = TilemapGridSize {
+        x: square_chunk_size as f32,
+        y: square_chunk_size as f32,
+    };
+    let mut tile_storage = TileStorage::empty(tilemap_size);
+    let tilemap_entity = commands.spawn().id();
+
+    println!(
+        "Map_tile_dims: {:?}\nMap_chunk_dims: {:?}",
+        map_tile_dims, map_chunk_dims
     );
 
     for j in 0..map_tile_dims.1 {
         for i in 0..map_tile_dims.0 {
+            let tile_type = match cell_map.contains(&(i as i32, j as i32)) {
+                true => TileType::WATER,
+                false => TileType::WALL,
+            };
+            let tile_pos = TilePos {
+                x: i as u32,
+                y: j as u32,
+            };
+            let tile_entity = commands
+                .spawn_bundle(TileBundle {
+                    position: tile_pos,
+                    texture: tile_type.to_raw_tile(),
+                    tilemap_id: TilemapId(tilemap_entity.clone()),
+                    ..Default::default()
+                })
+                .insert(HasTileType(tile_type))
+                .insert(TileMapOnly)
+                .id();
+            tile_storage.set(&tile_pos, Some(tile_entity));
+
+            /*
             let tile_type = match cell_map.contains(&(i as i32, j as i32)) {
                 true => TileType::WATER,
                 false => TileType::WALL,
@@ -136,24 +175,39 @@ pub fn init_tilemap(
                 .unwrap();
             let tile_entity = layer_builder.get_tile_entity(commands, pos).unwrap();
             commands.entity(tile_entity).insert(HasTileType(tile_type));
+             */
         }
-        println!();
     }
+
+    commands
+        .entity(tilemap_entity)
+        .insert_bundle(TilemapBundle {
+            grid_size,
+            size: tilemap_size,
+            storage: tile_storage,
+            texture: TilemapTexture(texture_handle),
+            tile_size: TilemapTileSize { x: 64.0, y: 64.0 },
+            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+            ..Default::default()
+        })
+        .insert(TileMapOnly);
 
     // Builds the layer.
     // Note: Once this is called you can no longer edit the layer until a hard sync in bevy.
-    let layer_entity = map_query.build_layer(commands, layer_builder, texture_handle);
+    //let layer_entity = map_query.build_layer(commands, layer_builder, texture_handle);
 
     // Required to keep track of layers for a map internally.
-    map.add_layer(commands, 0u16, layer_entity);
+    //map.add_layer(commands, 0u16, layer_entity);
 
     // Spawn Map
     // Required in order to use map_query to retrieve layers/tiles.
+    /*
     commands
         .entity(map_entity)
         .insert(map)
         .insert(Transform::from_xyz(0.0, 0.0, 0.0))
         .insert(GlobalTransform::default());
+     */
 }
 
 mod helpers {

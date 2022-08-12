@@ -3,11 +3,11 @@ use crate::helpers::builders::WithSelf;
 use bevy::asset::Handle;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::prelude::{Changed, Query, With};
-use bevy::math::{Rect, Size};
 use bevy::prelude::{
     AlignItems, BuildChildren, Button, ButtonBundle, ChildBuilder, Color, Component, Font,
     Interaction, JustifyContent, Style, Text, TextBundle, TextStyle, UiColor, Val,
 };
+use bevy::ui::{Size, UiRect};
 
 pub const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
@@ -15,9 +15,8 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 const TRANSPARENT: Color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
 pub mod rect_consts {
-    use bevy::math::Rect;
-    use bevy::ui::Val;
-    pub const CENTRED: Rect<Val> = Rect {
+    use bevy::ui::{UiRect, Val};
+    pub const CENTRED: UiRect<Val> = UiRect {
         left: Val::Auto,
         right: Val::Auto,
         top: Val::Percent(0.0),
@@ -79,7 +78,7 @@ where
                 size: button_size,
                 // center button
                 margin: rect_consts::CENTRED,
-                padding: (Rect {
+                padding: (UiRect {
                     left: Val::Percent(0.0),
                     right: Val::Percent(0.0),
                     top: Val::Px(100.0),
@@ -99,14 +98,13 @@ where
         .with_children(|parent| {
             parent
                 .spawn_bundle(TextBundle {
-                    text: Text::with_section(
+                    text: Text::from_section(
                         text,
                         TextStyle {
                             font,
                             font_size: 40.0,
                             color: Color::rgb(0.9, 0.9, 0.9),
                         },
-                        Default::default(),
                     ),
                     ..Default::default()
                 })
@@ -141,7 +139,7 @@ pub mod text {
                     // center button
                     size: Size::new(Val::Auto, Val::Px(font_size + 2.0)),
                     margin: super::rect_consts::CENTRED,
-                    padding: Rect::new_2(Val::Px(100.0), Val::Percent(0.0)),
+                    padding: UiRect::new_2(Val::Px(100.0), Val::Percent(0.0)),
                     // horizontally center child text
                     justify_content: JustifyContent::Center,
                     // vertically center child text
@@ -155,18 +153,18 @@ pub mod text {
             .with_children(|parent| {
                 parent
                     .spawn_bundle(TextBundle {
-                        text: Text::with_section(
+                        text: Text::from_section(
                             text,
                             TextStyle {
                                 font,
                                 font_size: 40.0,
                                 color,
                             },
-                            TextAlignment {
-                                vertical: VerticalAlign::Center,
-                                horizontal: HorizontalAlign::Center,
-                            },
-                        ),
+                        )
+                        .with_alignment(TextAlignment {
+                            vertical: VerticalAlign::Center,
+                            horizontal: HorizontalAlign::Center,
+                        }),
                         ..Default::default()
                     })
                     .with_self(|ec| text_entity = Some(ec.id()));

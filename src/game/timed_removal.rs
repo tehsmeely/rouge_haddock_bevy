@@ -1,10 +1,10 @@
 use crate::game::components::DirectionalSpriteAnimationSpecial;
 use bevy::app::App;
-use bevy::core::{Time, Timer};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::prelude::{Commands, Query, Res};
 use bevy::prelude::Plugin;
+use bevy::time::{Time, Timer};
 use std::marker::PhantomData;
 use std::time::Duration;
 

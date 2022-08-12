@@ -5,11 +5,11 @@ use crate::game::components::{
     TileResidentBundle,
 };
 use crate::game::projectile::ProjectileFate;
-use crate::game::tilemap::{HasTileType, TilePosExt};
+use crate::game::tilemap::{HasTileType, TilePosExt, TileStorageQuery};
 use crate::game::timed_removal::TimedDespawn;
 use crate::map_gen::cell_map::CellMap;
 use bevy::prelude::*;
-use bevy_ecs_tilemap::{MapQuery, TilePos};
+use bevy_ecs_tilemap::tiles::TilePos;
 use std::time::Duration;
 
 #[derive(Debug, Component)]
@@ -54,7 +54,10 @@ pub fn add_sharks(
     let atlas_handle = atlases.get(&TextureAtlasAsset::SharkSpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_sharks, exclude_positions);
     for (x, y) in spawn_positions.iter() {
-        let tile_pos = TilePos(*x as u32, *y as u32);
+        let tile_pos = TilePos {
+            x: *x as u32,
+            y: *y as u32,
+        };
         commands
             .spawn_bundle(TileResidentBundle::new(
                 1,
@@ -82,7 +85,10 @@ pub fn add_crabs(
     let atlas_handle = atlases.get(&TextureAtlasAsset::CrabSpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_crabs, exclude_positions);
     for (x, y) in spawn_positions.iter() {
-        let tile_pos = TilePos(*x as u32, *y as u32);
+        let tile_pos = TilePos {
+            x: *x as u32,
+            y: *y as u32,
+        };
         commands
             .spawn_bundle(SimpleTileResidentBundle::new(
                 1,
@@ -111,7 +117,10 @@ pub fn add_jellyfish(
     let atlas_handle = atlases.get(&TextureAtlasAsset::JellySpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_jellies, exclude_positions);
     for (x, y) in spawn_positions.iter() {
-        let tile_pos = TilePos(*x as u32, *y as u32);
+        let tile_pos = TilePos {
+            x: *x as u32,
+            y: *y as u32,
+        };
         commands
             .spawn_bundle(SimpleTileResidentBundle::new(
                 1,
@@ -134,14 +143,14 @@ pub fn jelly_lightning_projection(
     jelly_position: &TilePos,
     firing_direction: &MapDirection,
     player_query: &Query<(Entity, &TilePos), With<Player>>,
-    map_query: &mut MapQuery,
+    tile_storage_query: &TileStorageQuery,
     tiletype_query: &Query<&HasTileType>,
 ) -> (usize, Option<Entity>) {
     let projectile_fate = super::projectile::scan_to_endpoint(
         jelly_position,
         firing_direction,
         player_query,
-        map_query,
+        tile_storage_query,
         tiletype_query,
         false,
     );

@@ -8,11 +8,13 @@ use crate::game::events::GameEvent;
 use crate::game::tilemap::TilePosExt;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
-use bevy_ecs_tilemap::TilePos;
+use bevy_ecs_tilemap::tiles::TilePos;
 use std::time::Duration;
 
 #[derive(Default, Component)]
 pub struct InVortex;
+#[derive(Default, Component)]
+pub struct InHook;
 #[derive(Default, Component)]
 pub struct EndGameVortex;
 #[derive(Default, Component)]
@@ -103,6 +105,7 @@ pub fn end_game_hook_system(
                     .entity(player_entity)
                     .remove::<MovementAnimate>()
                     .remove::<CameraFollow>()
+                    .insert(InHook)
                     .insert(hooked_animation.clone());
                 commands
                     .entity(hook_entity)

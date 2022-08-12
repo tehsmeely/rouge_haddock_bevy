@@ -2,12 +2,11 @@ use bevy::prelude::*;
 
 use bevy::utils::Duration;
 
-
+use crate::game::components::GameCamera;
+use bevy::render::texture::ImageSettings;
 use bevy_ecs_tilemap::TilemapPlugin;
 use bevy_kira_audio::AudioPlugin;
 use log::info;
-
-
 
 mod asset_handling;
 mod game;
@@ -34,6 +33,7 @@ enum CoreState {
 pub fn main() {
     let initial_state = CoreState::Loading;
     App::new()
+        .insert_resource(ImageSettings::default_nearest())
         .add_plugins(DefaultPlugins)
         .add_plugin(TilemapPlugin)
         .add_plugin(AudioPlugin)
@@ -48,6 +48,7 @@ pub fn main() {
         .add_state(initial_state)
         .add_system(setup_window_title)
         .add_startup_system(print_window_info)
+        .add_startup_system(general_game_setup)
         .run();
 }
 
@@ -56,6 +57,12 @@ impl Default for ActiveSystem {
     fn default() -> Self {
         Self(true)
     }
+}
+
+fn general_game_setup(mut commands: Commands) {
+    commands
+        .spawn_bundle(Camera2dBundle::default())
+        .insert(GameCamera);
 }
 
 fn setup_window_title(

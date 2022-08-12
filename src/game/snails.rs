@@ -6,7 +6,7 @@ use crate::game::game::SnailsCollectedThisRun;
 use crate::game::tilemap::TilePosExt;
 use crate::map_gen::cell_map::CellMap;
 use bevy::prelude::*;
-use bevy_ecs_tilemap::TilePos;
+use bevy_ecs_tilemap::tiles::TilePos;
 
 /// Snails serve as the collectable resource, are not a moving tile resident/enemy
 #[derive(Debug, Component)]
@@ -22,7 +22,10 @@ fn add_snails(
     let atlas_handle = atlases.get(&TextureAtlasAsset::SnailSpritesheet);
     let spawn_positions = cell_map.distribute_points_by_cost(num_snails, exclude_positions);
     for (x, y) in spawn_positions.iter() {
-        let tile_pos = TilePos(*x as u32, *y as u32);
+        let tile_pos = TilePos {
+            x: *x as u32,
+            y: *y as u32,
+        };
         let start_pos = tile_pos.to_world_pos(9.0);
         let mut transform = Transform::from_translation(start_pos);
         transform.scale = Vec3::splat(0.7);

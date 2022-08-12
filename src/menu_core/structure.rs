@@ -77,7 +77,7 @@ pub fn split_unequal<F, G>(
         .spawn_bundle(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                margin: Rect::all(Val::Auto),
+                margin: UiRect::all(Val::Auto),
                 justify_content: JustifyContent::Center,
                 flex_direction: split_way.into(),
                 ..Default::default()
@@ -90,7 +90,7 @@ pub fn split_unequal<F, G>(
                 .spawn_bundle(NodeBundle {
                     style: Style {
                         size: Size::new(w1, h1),
-                        margin: Rect::all(Val::Auto),
+                        margin: UiRect::all(Val::Auto),
                         justify_content: JustifyContent::Center,
                         flex_direction: (!split_way).into(),
                         ..Default::default()
@@ -103,7 +103,7 @@ pub fn split_unequal<F, G>(
                 .spawn_bundle(NodeBundle {
                     style: Style {
                         size: Size::new(w2, h2),
-                        margin: Rect::all(Val::Auto),
+                        margin: UiRect::all(Val::Auto),
                         justify_content: JustifyContent::Center,
                         flex_direction: (!split_way).into(),
                         ..Default::default()

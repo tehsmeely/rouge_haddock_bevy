@@ -1,23 +1,23 @@
 use super::tilemap::TilePosExt;
-use crate::asset_handling::asset::{TextureAtlasAsset};
-use crate::asset_handling::{TextureAtlasStore};
+use crate::asset_handling::asset::TextureAtlasAsset;
+use crate::asset_handling::TextureAtlasStore;
 use crate::game::components::{
     AnimationTimer, DirectionalSpriteAnimation, Facing, Health, MapDirection, TileType,
 };
 use crate::game::enemy::JellyfishLightningTile;
 use crate::game::events::GameEvent;
-use crate::game::tilemap::HasTileType;
+use crate::game::tilemap::{HasTileType, TileStorageQuery};
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
 
-use bevy::core::{Time, Timer};
+use bevy::time::{Time, Timer};
 
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventWriter;
 use bevy::ecs::prelude::{Commands, Local, Query, Res, With};
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component};
+use bevy::prelude::Component;
 use bevy::prelude::{SpriteSheetBundle, Transform};
-use bevy_ecs_tilemap::{MapQuery, TilePos};
+use bevy_ecs_tilemap::tiles::TilePos;
 use log::debug;
 use num::Signed;
 use std::collections::HashMap;
@@ -145,17 +145,21 @@ pub fn projectile_system(
 }
 
 // TODO: Move me
-fn get_tiletype(t: &TilePos, q: &Query<&HasTileType>, map_query: &mut MapQuery) -> TileType {
-    let tile_entity = map_query.get_tile_entity(*t, 0, 0);
+fn get_tiletype(
+    t: &TilePos,
+    q: &Query<&HasTileType>,
+    tile_storage_query: &TileStorageQuery,
+) -> TileType {
+    let tile_entity = tile_storage_query.single().get(t);
     match tile_entity {
-        Ok(entity) => {
+        Some(entity) => {
             let type_ = q.get(entity);
             match type_ {
                 Ok(tt) => tt.0.clone(),
                 Err(_) => TileType::WALL,
             }
         }
-        Err(_) => TileType::WALL,
+        None => TileType::WALL,
     }
 }
 
@@ -183,14 +187,14 @@ pub fn scan_to_endpoint<T: Component>(
     from: &TilePos,
     direction: &MapDirection,
     query: &Query<(Entity, &TilePos), With<T>>,
-    map_query: &mut MapQuery,
+    tile_storage_query: &TileStorageQuery,
     tiletype_query: &Query<&HasTileType>,
     return_early_on_target_hit: bool,
 ) -> ProjectileFate {
     let targets_on_same_row_or_column: HashMap<TilePos, Entity> = {
         let mut targets = HashMap::with_capacity(5);
         for (entity, tilepos) in query.iter() {
-            if tilepos.0 == from.0 || tilepos.1 == from.1 {
+            if tilepos.x == from.x || tilepos.y == from.y {
                 targets.insert(*tilepos, entity);
             }
         }
@@ -211,7 +215,7 @@ pub fn scan_to_endpoint<T: Component>(
         }
         tilepos_add_vec(&mut test_pos, &step);
         println!("Testing pos: {:?}", test_pos);
-        let tile_type = get_tiletype(&test_pos, tiletype_query, map_query);
+        let tile_type = get_tiletype(&test_pos, tiletype_query, tile_storage_query);
         if tile_type.can_enter() {
             match targets_on_same_row_or_column.get(&test_pos) {
                 Some(entity) => {
@@ -239,14 +243,14 @@ pub fn scan_to_endpoint<T: Component>(
 fn tilepos_add_vec(tilepos: &mut TilePos, vec: &Vec2) {
     //TODO use the i32 add function defined somewhere else for each
     if vec.x.is_negative() {
-        tilepos.0 -= vec.x.abs() as i32 as u32;
+        tilepos.x -= vec.x.abs() as i32 as u32;
     } else {
-        tilepos.0 += vec.x as i32 as u32;
+        tilepos.x += vec.x as i32 as u32;
     }
     if vec.y.is_negative() {
-        tilepos.1 -= vec.y.abs() as i32 as u32;
+        tilepos.y -= vec.y.abs() as i32 as u32;
     } else {
-        tilepos.1 += vec.y as i32 as u32;
+        tilepos.y += vec.y as i32 as u32;
     }
 }
 

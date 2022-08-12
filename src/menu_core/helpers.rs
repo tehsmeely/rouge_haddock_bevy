@@ -1,13 +1,12 @@
-use bevy::math::Rect;
-use bevy::ui::Val;
+use bevy::ui::{UiRect, Val};
 
 pub trait RectExt {
     fn new_2(v_topbottom: Val, v_leftright: Val) -> Self;
 }
 
-impl RectExt for Rect<Val> {
+impl RectExt for UiRect<Val> {
     fn new_2(v_topbottom: Val, v_leftright: Val) -> Self {
-        Rect {
+        UiRect {
             left: v_leftright,
             right: v_leftright,
             top: v_topbottom,

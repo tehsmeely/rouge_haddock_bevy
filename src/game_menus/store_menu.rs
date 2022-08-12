@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use crate::asset_handling::asset::ImageAsset;
@@ -123,10 +122,6 @@ fn menu_setup(
     image_asset_store: Res<ImageAssetStore>,
 ) {
     let font = asset_server.load("fonts/bigfish/Bigfish.ttf");
-    // ui camera
-    commands
-        .spawn_bundle(UiCameraBundle::default())
-        .insert(StoreMenuOnly);
 
     let mut display_text_cost = None;
     let mut display_text_shells = None;
