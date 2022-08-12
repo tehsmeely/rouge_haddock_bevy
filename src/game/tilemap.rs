@@ -85,8 +85,15 @@ impl TilePosExt for TilePos {
 #[derive(Debug, Component)]
 pub struct HasTileType(pub TileType);
 
-pub fn cleanup(mut commands: Commands, tilemap_only_query: Query<Entity, With<TileMapOnly>>) {
-    for entity in tilemap_only_query.iter() {
+pub fn cleanup(
+    mut commands: Commands,
+    tilemap_query: Query<Entity, With<TileStorage>>,
+    tile_query: Query<Entity, With<TileTexture>>,
+) {
+    for entity in tilemap_query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+    for entity in tile_query.iter() {
         commands.entity(entity).despawn_recursive();
     }
 }
