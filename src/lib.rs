@@ -81,10 +81,17 @@ fn setup_window_title(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 fn print_window_info(mut windows: ResMut<Windows>) {
     for window in windows.iter_mut() {
         println!("{:?}", window);
         window.set_resolution(800f32, 550f32);
+        println!("{:?}", window);
+    }
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn print_window_info(mut windows: ResMut<Windows>) {
+    for window in windows.iter_mut() {
         println!("{:?}", window);
     }
 }
