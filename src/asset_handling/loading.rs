@@ -18,6 +18,11 @@ impl ImageAssetStore {
     pub fn get(&self, key: &ImageAsset) -> Handle<Image> {
         self.0.get(key).unwrap().clone()
     }
+
+    #[cfg(test)]
+    pub fn new_test(inner: HashMap<ImageAsset, Handle<Image>>) -> Self {
+        Self(inner)
+    }
 }
 impl TextureAtlasStore {
     pub fn get(&self, key: &TextureAtlasAsset) -> Handle<TextureAtlas> {

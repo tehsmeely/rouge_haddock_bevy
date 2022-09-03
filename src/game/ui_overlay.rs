@@ -220,7 +220,7 @@ fn help_view(parent: &mut ChildBuilder, font: Handle<Font>, image_store: &ImageA
                 .spawn_bundle(general::new(general::defaults::full(
                     FlexDirection::Row,
                     Some(vec![
-                        general::Property::Margin(Val::Auto),
+                        general::Property::MarginAll(Val::Auto),
                         general::Property::FlexGrow(0f32),
                         general::Property::FlexBasis(Val::Px(1.0)),
                     ]),
@@ -241,7 +241,7 @@ fn help_view(parent: &mut ChildBuilder, font: Handle<Font>, image_store: &ImageA
                         Some(vec![
                             general::Property::Image(image_store.get(&ImageAsset::HelpCard)),
                             general::Property::Colour(Color::WHITE),
-                            general::Property::Margin(Val::Px(0.0)),
+                            general::Property::MarginAll(Val::Px(0.0)),
                             general::Property::AspectRatio(1.0),
                             general::Property::Height(Val::Percent(100.0)),
                             general::Property::Width(Val::Auto),

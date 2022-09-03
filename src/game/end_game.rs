@@ -22,6 +22,8 @@ pub struct EndGameHook;
 #[derive(Default, Component)]
 pub struct EndGameHookLine;
 
+pub struct VortexSpawnEvent;
+
 #[derive(Default, Component, Clone)]
 pub struct HookedAnimation {
     timer: Timer,

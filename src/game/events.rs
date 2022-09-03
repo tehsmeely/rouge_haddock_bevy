@@ -34,4 +34,5 @@ pub enum InfoEvent {
     PlayerKilled,
     PlayerPickedUpSnail,
     JellyLightningFired,
+    VortexSpawned,
 }

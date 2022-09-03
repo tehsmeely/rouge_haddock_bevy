@@ -91,7 +91,7 @@ pub fn cleanup(
     tile_query: Query<Entity, With<TileTexture>>,
 ) {
     for entity in tilemap_query.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
     for entity in tile_query.iter() {
         commands.entity(entity).despawn_recursive();
@@ -103,15 +103,10 @@ pub fn init_tilemap(
     image_assets: &Res<ImageAssetStore>,
     cell_map: &CellMap<i32>,
     border_size: usize,
-    images: &Assets<Image>,
 ) {
     let texture_handle = image_assets.get(&ImageAsset::TileMapSpritesheet);
 
     info!("Tilemap Init!");
-    info!("Texture: {:?}", images.get(&texture_handle));
-
-    // Create map entity and component:
-    let map_entity = commands.spawn().id();
 
     let square_chunk_size = 8u32;
     let map_tile_dims = {
@@ -170,19 +165,6 @@ pub fn init_tilemap(
                 .insert(TileMapOnly)
                 .id();
             tile_storage.set(&tile_pos, Some(tile_entity));
-
-            /*
-            let tile_type = match cell_map.contains(&(i as i32, j as i32)) {
-                true => TileType::WATER,
-                false => TileType::WALL,
-            };
-            let pos = TilePos(i as u32, j as u32);
-            layer_builder
-                .set_tile(pos, tile_type.to_raw_tile().into())
-                .unwrap();
-            let tile_entity = layer_builder.get_tile_entity(commands, pos).unwrap();
-            commands.entity(tile_entity).insert(HasTileType(tile_type));
-             */
         }
     }
 
@@ -198,23 +180,6 @@ pub fn init_tilemap(
             ..Default::default()
         })
         .insert(TileMapOnly);
-
-    // Builds the layer.
-    // Note: Once this is called you can no longer edit the layer until a hard sync in bevy.
-    //let layer_entity = map_query.build_layer(commands, layer_builder, texture_handle);
-
-    // Required to keep track of layers for a map internally.
-    //map.add_layer(commands, 0u16, layer_entity);
-
-    // Spawn Map
-    // Required in order to use map_query to retrieve layers/tiles.
-    /*
-    commands
-        .entity(map_entity)
-        .insert(map)
-        .insert(Transform::from_xyz(0.0, 0.0, 0.0))
-        .insert(GlobalTransform::default());
-     */
 }
 
 mod helpers {
@@ -224,5 +189,114 @@ mod helpers {
         } else {
             u.checked_add(i as u32)
         }
+    }
+}
+
+mod test {
+    use crate::asset_handling::asset::ImageAsset;
+    use crate::asset_handling::ImageAssetStore;
+    use crate::game::tilemap::init_tilemap;
+    use crate::map_gen::cell_map::CellMap;
+    use bevy::prelude::*;
+    use bevy_ecs_tilemap::prelude::*;
+    use std::collections::HashMap;
+
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    enum TestSysState {
+        Pre,
+        Normal,
+        After,
+    }
+
+    #[test]
+    fn test_tilemap_removal() {
+        let mut app = App::new();
+
+        let blank_handle: Handle<Image> = Handle::default();
+
+        let image_asset_store = {
+            let mut map = HashMap::new();
+            map.insert(ImageAsset::TileMapSpritesheet, blank_handle);
+            ImageAssetStore::new_test(map)
+        };
+        app.world.insert_resource(image_asset_store);
+
+        app.add_state(TestSysState::Pre);
+        app.add_system_set(
+            SystemSet::on_enter(TestSysState::Normal).with_system(test_startup_system),
+        );
+        app.add_system_set(
+            SystemSet::on_exit(TestSysState::Normal)
+                .with_system(super::cleanup)
+                .with_system(super::cleanup),
+        );
+        app.update();
+        assert_eq!(0, app.world.entities().len());
+        {
+            let mut state = app.world.get_resource_mut::<State<TestSysState>>().unwrap();
+            state.set(TestSysState::Normal);
+        }
+        app.update();
+        assert_eq!(610, app.world.entities().len());
+        {
+            let mut state = app.world.get_resource_mut::<State<TestSysState>>().unwrap();
+            state.set(TestSysState::After);
+        }
+        app.update();
+        println!("World: {:?}", app.world);
+        println!("Entities: {:?}", app.world.entities());
+        println!("Components: ");
+        for component in app.world.components().iter() {
+            println!("{:?}", component);
+        }
+        println!("-----------");
+        let mut q = app.world.query::<(Entity)>();
+        for entity in q.iter(&app.world) {
+            let c = app.world.inspect_entity(entity);
+            println!("Entity: {:?}", entity);
+            for ci in c.iter() {
+                println!("> {:?}", ci);
+            }
+            println!("-\n")
+        }
+        let mut pre_numbers = vec![];
+        let mut post_numbers = vec![];
+
+        for _i in 0..5 {
+            pre_numbers.push(app.world.entities().len());
+            {
+                let mut state = app.world.get_resource_mut::<State<TestSysState>>().unwrap();
+                state.set(TestSysState::Normal);
+            }
+            app.update();
+            post_numbers.push(app.world.entities().len());
+            {
+                let mut state = app.world.get_resource_mut::<State<TestSysState>>().unwrap();
+                state.set(TestSysState::Pre);
+            }
+            app.update();
+
+            for entity in q.iter(&app.world) {
+                let c = app.world.inspect_entity(entity);
+                println!("Entity: {:?}", entity);
+                for ci in c.iter() {
+                    println!("> {:?}", ci);
+                }
+                println!("-\n")
+            }
+        }
+
+        println!("Pre: {:?}\nPost: {:?}", pre_numbers, post_numbers);
+        assert_eq!(true, true);
+    }
+
+    fn test_startup_system(mut commands: Commands, images: Res<ImageAssetStore>) {
+        let mut m = HashMap::new();
+        for i in 0..10 {
+            m.insert((i, 0), 1);
+            m.insert((i, 1), 0);
+        }
+        let cell_map = CellMap::new(m);
+        init_tilemap(&mut commands, &images, &cell_map, 10)
     }
 }

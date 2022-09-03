@@ -8,7 +8,7 @@ use super::{
 };
 use crate::asset_handling::asset::{AudioAsset, TextureAtlasAsset};
 use crate::asset_handling::{AudioAssetStore, ImageAssetStore, TextureAtlasStore};
-use crate::game::end_game::{EndGameHook, EndGameVortex, InHook, InVortex};
+use crate::game::end_game::{EndGameHook, EndGameVortex, InHook, InVortex, VortexSpawnEvent};
 use crate::game::enemy::{Jellyfish, JellyfishLightningTile, JellyfishState};
 use crate::game::events::{InfoEvent, PowerEvent};
 use crate::game::movement::{AttackCriteria, MoveDecisions};
@@ -79,6 +79,7 @@ impl Plugin for GamePlugin {
                     .with_system(shrinking_system)
                     .with_system(end_of_game_watcher_system)
                     .with_system(vortex_spawner_system)
+                    .with_system(vortex_spawn_trigger_system)
                     .with_system(end_of_level_event_system)
                     .with_system(regular_game_enable_watcher)
                     .with_system(super::end_game::end_game_hook_system)
@@ -110,6 +111,7 @@ impl Plugin for GamePlugin {
             .add_event::<super::events::InfoEvent>()
             .add_event::<super::events::PowerEvent>()
             .add_event::<MouseClickEvent>()
+            .add_event::<VortexSpawnEvent>()
             .insert_resource(GlobalTurnCounter::default())
             .insert_resource(GlobalLevelCounter::default())
             .insert_resource(SnailsCollectedThisRun(0_usize))
@@ -148,9 +150,17 @@ fn game_level_transition_enter(mut global_level_counter: ResMut<GlobalLevelCount
     info!("Game Level Transition enter!");
     global_level_counter.increment();
 }
-fn game_level_transition(mut state: ResMut<State<crate::CoreState>>) {
+fn game_level_transition(
+    mut state: ResMut<State<crate::CoreState>>,
+    mut local_counter: Local<u32>,
+) {
     info!("Game Level Transition!\nState:{:?}", state);
-    state.set(crate::CoreState::GameLevel).unwrap();
+    if *local_counter > 1 {
+        state.set(crate::CoreState::GameLevel).unwrap();
+        *local_counter = 0;
+    } else {
+        *local_counter += 1;
+    }
 }
 
 fn global_turn_counter_system(
@@ -229,11 +239,9 @@ fn end_of_level_event_system(
         }
     }
 }
-fn vortex_spawner_system(
-    mut commands: Commands,
-    image_store: Res<ImageAssetStore>,
-    cell_map: ResMut<CellMap<i32>>,
-    player_query: Query<&TilePos, With<Player>>,
+
+fn vortex_spawn_trigger_system(
+    mut event_writer: EventWriter<VortexSpawnEvent>,
     enemy_query: Query<Entity, With<Enemy>>,
     global_turn_counter: Res<GlobalTurnCounter>,
     existing_vortex_query: Query<Entity, With<EndGameVortex>>,
@@ -251,6 +259,28 @@ fn vortex_spawner_system(
         // before enemies spawn at start
         let can_early_spawn = enemy_count == 0 && global_turn_counter.turn_count > 2;
         can_late_spawn || can_early_spawn
+    };
+    if ready_to_spawn && no_vortex_exists {
+        event_writer.send(VortexSpawnEvent);
+    }
+}
+fn vortex_spawner_system(
+    mut commands: Commands,
+    image_store: Res<ImageAssetStore>,
+    cell_map: ResMut<CellMap<i32>>,
+    player_query: Query<&TilePos, With<Player>>,
+    enemy_query: Query<Entity, With<Enemy>>,
+    global_turn_counter: Res<GlobalTurnCounter>,
+    existing_vortex_query: Query<Entity, With<EndGameVortex>>,
+    mut vortex_spawn_event_reader: EventReader<VortexSpawnEvent>,
+    mut info_event_writer: EventWriter<InfoEvent>,
+) {
+    let no_vortex_exists = existing_vortex_query.is_empty();
+    let ready_to_spawn = if !vortex_spawn_event_reader.is_empty() {
+        vortex_spawn_event_reader.clear();
+        true
+    } else {
+        false
     };
     if ready_to_spawn && no_vortex_exists {
         info!(
@@ -271,7 +301,7 @@ fn vortex_spawner_system(
             }
         };
         super::end_game::spawn_vortex(&mut commands, spawn_pos, &image_store);
-        // TODO: Trigger sound
+        info_event_writer.send(InfoEvent::VortexSpawned);
     }
 }
 
@@ -717,6 +747,10 @@ fn sfx_system(
                 debug!("Playing Audio for Jellyfish lightning");
                 audio.play(audio_asset_store.get(&AudioAsset::JellyLightning));
             }
+            InfoEvent::VortexSpawned => {
+                debug!("Playing Audio for Vortex Spawned");
+                audio.play(audio_asset_store.get(&AudioAsset::VortexSpawn));
+            }
         }
     }
 }
@@ -1016,19 +1050,7 @@ fn setup(
         normalised.offset((border_size as i32, border_size as i32))
     };
     println!("Final CellMap: {:?}", cell_map);
-    super::tilemap::init_tilemap(
-        &mut commands,
-        &image_assets,
-        &cell_map,
-        border_size,
-        &images,
-    );
-    /*
-    commands
-        .spawn_bundle(OrthographicCameraBundle::new_2d())
-        .insert(GameOnly)
-        .insert(GameCamera);
-     */
+    super::tilemap::init_tilemap(&mut commands, &image_assets, &cell_map, border_size);
     let atlas_handle = texture_atlas_store.get(&TextureAtlasAsset::HaddockSpritesheet);
     let start_point = {
         let start_point = cell_map.start_point().unwrap_or((1, 1));

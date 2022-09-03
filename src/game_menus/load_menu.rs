@@ -113,7 +113,7 @@ fn menu_setup(
                         Property::Direction(FlexDirection::Row),
                         Property::Height(Val::Percent(20f32)),
                         Property::Width(Val::Percent(100f32)),
-                        Property::Margin(Val::Percent(0f32)),
+                        Property::MarginAll(Val::Percent(0f32)),
                         Property::Justify(JustifyContent::Center),
                     ])
                 })

@@ -21,6 +21,11 @@ pub enum ImageAsset {
     VortexSprite,
     Background,
     HelpCard,
+    UiHealthFull,
+    UiHealthHalf,
+    UiHealthEmpty,
+    UiPowerFull,
+    UiPowerEmpty,
 }
 
 impl ImageAsset {
@@ -40,6 +45,7 @@ pub enum AudioAsset {
     FishSlap,
     Death,
     Pickup,
+    VortexSpawn,
 }
 
 impl AssetClass for AudioAsset {
@@ -50,7 +56,10 @@ impl AssetClass for AudioAsset {
             Self::Chomp => "audio/carrotnom.wav",
             Self::FishSlap => "audio/fish_slap.ogg",
             Self::Death => "audio/398068__happyparakeet__pixel-death.wav",
-            Self::Pickup => "audio/608431__plasterbrain__shiny-coin-pickup.flac",
+
+            Self::VortexSpawn | Self::Pickup => {
+                "audio/608431__plasterbrain__shiny-coin-pickup.flac"
+            }
         }
     }
 }
@@ -72,6 +81,11 @@ impl AssetClass for ImageAsset {
             Self::JellyChargeIndicator => "sprites/jelly_charge_indicator.png",
             Self::JellyLightning => "sprites/jelly_lightning.png",
             Self::HelpCard => "ui/help_card.png",
+            Self::UiHealthFull => "ui/heart_1.png",
+            Self::UiHealthHalf => "ui/heart_2.png",
+            Self::UiHealthEmpty => "ui/heart_3.png",
+            Self::UiPowerFull => "ui/power_bolt_1.png",
+            Self::UiPowerEmpty => "ui/power_bolt_2.png",
         }
     }
 }

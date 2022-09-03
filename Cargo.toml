@@ -31,6 +31,9 @@ strum_macros = "0.24.0"
 ron = "0.7.0"
 serde = "1.0.136"
 
+[dependencies.bevy_ui_nodes]
+path = "../bevy_ui_nodes"
+
 #Below re-implement as wasm32 only later ...
 #[target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3.59", features = ["Storage", "Window"]}

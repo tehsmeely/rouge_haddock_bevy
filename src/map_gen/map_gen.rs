@@ -253,11 +253,11 @@ pub fn get_cell_map(min_size: usize, max_tries: i32) -> CellMap<i32> {
 
 fn run_single(min_size: usize) -> Option<CellMap<i32>> {
     let mut grid = Grid::new((20, 20));
-    grid.draw();
+    //grid.draw();
     for _i in 0..6 {
         grid.update();
     }
-    grid.draw();
+    //grid.draw();
     let start = grid.find_start()?;
     //println!("Start: {:?}", start);
     let cell_map = CellMap::new(grid.map_and_cull(start));

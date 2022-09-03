@@ -3,6 +3,7 @@ use crate::game::components::*;
 use crate::game::enemy::Enemy;
 use crate::game::events::{InfoEvent, InputEvent};
 
+use crate::game::end_game::VortexSpawnEvent;
 use crate::game::tilemap::{HasTileType, TilePosExt, TileStorageQuery};
 use crate::game::turn::{GamePhase, GlobalTurnCounter, TurnCounter};
 use crate::map_gen::cell_map::CellMap;
@@ -42,6 +43,7 @@ fn debug_print_input_system(
     _texture_atlases: ResMut<Assets<TextureAtlas>>,
     atlases: Res<TextureAtlasStore>,
     mut info_event_writer: EventWriter<InfoEvent>,
+    mut vortex_spawn_event_writer: EventWriter<VortexSpawnEvent>,
     _image_assets: Res<ImageAssetStore>,
 ) {
     if input.just_pressed(KeyCode::P) {
@@ -81,6 +83,10 @@ fn debug_print_input_system(
             Some(&exclude_positions),
         );
         *cell_map = recalculated_map;
+    }
+
+    if input.just_pressed(KeyCode::V) {
+        vortex_spawn_event_writer.send(VortexSpawnEvent);
     }
 }
 
