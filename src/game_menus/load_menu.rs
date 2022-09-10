@@ -11,6 +11,7 @@ use crate::menu_core::menu_core::text::{standard_centred_text, TextNodes};
 use crate::menu_core::menu_core::{make_button, ButtonComponent};
 use crate::profiles::profiles::{load_profiles_blocking, LoadingProfileSlotNum, ProfileSlot};
 use bevy::prelude::{FlexDirection, JustifyContent};
+use bevy_ui_nodes::{HeightOrWidth, Property};
 
 pub struct MenuPlugin;
 
@@ -101,14 +102,17 @@ fn menu_setup(
     let mut profile_picker = None;
     let mut load_button_text_entity = None;
     commands
-        .spawn_bundle(crate::menu_core::nodes::vertical::full_with_background(
-            image_assets.get(&ImageAsset::Background),
-        ))
+        .spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::full(
+            FlexDirection::Column,
+            Some(vec![bevy_ui_nodes::Property::Image(
+                image_assets.get(&ImageAsset::Background),
+            )]),
+        )))
         .insert(LoadMenuOnly {})
         .with_children(|parent| {
             parent
                 .spawn_bundle({
-                    use crate::menu_core::nodes::general::*;
+                    use bevy_ui_nodes::*;
                     new(vec![
                         Property::Direction(FlexDirection::Row),
                         Property::Height(Val::Percent(20f32)),
@@ -123,7 +127,11 @@ fn menu_setup(
                     load_button_text_entity = Some(text);
                 });
             parent
-                .spawn_bundle(crate::menu_core::nodes::vertical::half())
+                .spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::half(
+                    HeightOrWidth::Height,
+                    FlexDirection::Row,
+                    None,
+                )))
                 .with_children(|parent| {
                     profile_picker = Some(ProfilePicker::create(
                         parent,
@@ -207,29 +215,34 @@ impl ProfilePicker {
     ) -> Self {
         let mut text_nodes = None;
         let mut image_entity = None;
+        let arrow_node = {
+            let properties = bevy_ui_nodes::defaults::empty(
+                HeightOrWidth::Width,
+                FlexDirection::Column,
+                Some(vec![Property::Justify(JustifyContent::Center)]),
+            );
+            bevy_ui_nodes::new(properties)
+        };
         builder
-            .spawn_bundle(crate::menu_core::nodes::horizontal::full())
+            .spawn_bundle(bevy_ui_nodes::default_node::full_horizontal())
             .with_children(|parent| {
                 parent
-                    .spawn_bundle(crate::menu_core::nodes::horizontal::empty())
+                    .spawn_bundle(arrow_node.clone())
                     .with_children(|parent| {
                         make_button(ProfilePickerButton::Left, parent, font.clone());
                     });
                 parent
-                    .spawn_bundle(crate::menu_core::nodes::horizontal::half())
+                    .spawn_bundle(bevy_ui_nodes::default_node::half(
+                        HeightOrWidth::Width,
+                        FlexDirection::Row,
+                        None,
+                    ))
                     .with_children(|parent| {
                         parent
-                            .spawn_bundle(crate::menu_core::nodes::general::new(
-                                crate::menu_core::nodes::general::defaults::full(
-                                    FlexDirection::Column,
-                                    Some(vec![
-                                        crate::menu_core::nodes::general::Property::Justify(
-                                            JustifyContent::Center,
-                                        ),
-                                    ]),
-                                ),
-                            ))
-                            //.spawn_bundle(crate::menu_core::nodes::vertical::full())
+                            .spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::full(
+                                FlexDirection::Column,
+                                Some(vec![Property::Justify(JustifyContent::Center)]),
+                            )))
                             .with_children(|parent| {
                                 let image_scale = 2.0;
                                 let image_size = 64f32 * image_scale;
@@ -257,11 +270,9 @@ impl ProfilePicker {
                                     Some(standard_centred_text(parent, text, font.clone()));
                             });
                     });
-                parent
-                    .spawn_bundle(crate::menu_core::nodes::horizontal::empty())
-                    .with_children(|parent| {
-                        make_button(ProfilePickerButton::Right, parent, font.clone());
-                    });
+                parent.spawn_bundle(arrow_node).with_children(|parent| {
+                    make_button(ProfilePickerButton::Right, parent, font.clone());
+                });
             });
         ProfilePicker {
             text_nodes: text_nodes.unwrap(),

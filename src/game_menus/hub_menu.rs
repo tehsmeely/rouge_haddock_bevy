@@ -3,10 +3,11 @@ use bevy::prelude::*;
 use crate::asset_handling::asset::ImageAsset;
 use crate::asset_handling::ImageAssetStore;
 use crate::game_menus::components::{HubButton, HubMenuOnly};
+use crate::menu_core::menu_core;
 use crate::menu_core::menu_core::rect_consts::CENTRED;
 use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_text_custom};
-use crate::menu_core::{menu_core, nodes};
 use crate::profiles::profiles::{LoadedUserProfile, UserProfile};
+use bevy_ui_nodes::{HeightOrWidth, Property};
 
 pub struct MenuPlugin;
 
@@ -56,14 +57,14 @@ fn menu_setup(
     loaded_profile.save();
 
     commands
-        .spawn_bundle(nodes::general::new(nodes::general::defaults::full(
+        .spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::full(
             FlexDirection::Row,
             Some(vec![
-                nodes::general::Property::Colour(Color::rgba(1., 1., 1., 1.0)),
-                nodes::general::Property::Image(image_assets.get(&ImageAsset::Background)),
+                Property::Colour(Color::rgba(1., 1., 1., 1.0)),
+                Property::Image(image_assets.get(&ImageAsset::Background)),
             ]),
         )))
-        //.spawn_bundle(crate::menu_core::nodes::horizontal::full())
+        //.spawn_bundle(bevy_ui_nodes::defaults::full_horizontal())
         .insert(HubMenuOnly {})
         .with_children(|parent| {
             left_bar_stats_bundle(
@@ -84,7 +85,13 @@ fn left_bar_stats_bundle(
 ) {
     let image = image_assets.get(&user_profile.haddock_variant.to_image_asset());
     parent
-        .spawn_bundle(crate::menu_core::nodes::horizontal::half())
+        .spawn_bundle(bevy_ui_nodes::default_node::half(
+            HeightOrWidth::Width,
+            FlexDirection::Column,
+            Some(vec![bevy_ui_nodes::Property::Justify(
+                JustifyContent::Center,
+            )]),
+        ))
         .with_children(|parent| {
             standard_centred_text_custom(
                 parent,
@@ -117,7 +124,13 @@ fn left_bar_stats_bundle(
 
 fn right_bar_button_bundle(parent: &mut ChildBuilder, font: Handle<Font>) {
     parent
-        .spawn_bundle(crate::menu_core::nodes::horizontal::half())
+        .spawn_bundle(bevy_ui_nodes::default_node::half(
+            HeightOrWidth::Width,
+            FlexDirection::Column,
+            Some(vec![bevy_ui_nodes::Property::Justify(
+                JustifyContent::Center,
+            )]),
+        ))
         .with_children(|parent| {
             menu_core::make_button(HubButton::Quit, parent, font.clone());
             menu_core::make_button(HubButton::Store, parent, font.clone());

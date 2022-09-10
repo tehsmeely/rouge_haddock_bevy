@@ -13,6 +13,7 @@ use crate::menu_core::helpers::RectExt;
 use crate::menu_core::menu_core::text::standard_centred_text;
 use crate::profiles::profiles::LoadedUserProfile;
 use bevy::prelude::JustifyContent;
+use bevy_ui_nodes::HeightOrWidth;
 
 #[derive(Debug, Component)]
 pub struct GameUiOnly;
@@ -47,7 +48,7 @@ fn ui_setup(
     let banner_height = Val::Px((ui_components::ICON_HEIGHT * 2.0) + 4.0);
     let mut root_node = None;
     commands
-        .spawn_bundle(crate::menu_core::nodes::vertical::full())
+        .spawn_bundle(bevy_ui_nodes::default_node::full_vertical())
         .insert(GameUiOnly {})
         .with_children(|parent| {
             // Bottom Bar
@@ -66,7 +67,7 @@ fn ui_setup(
                 .with_children(|parent| {
                     parent
                         .spawn_bundle({
-                            use crate::menu_core::nodes::general::*;
+                            use bevy_ui_nodes::*;
                             new(vec![
                                 Property::Height(Val::Percent(100.0)),
                                 Property::Width(Val::Auto),
@@ -93,7 +94,11 @@ fn ui_setup(
             // Central Panel
             root_node = Some(
                 parent
-                    .spawn_bundle(crate::menu_core::nodes::vertical::half())
+                    .spawn_bundle(bevy_ui_nodes::default_node::half(
+                        HeightOrWidth::Height,
+                        FlexDirection::Column,
+                        None,
+                    ))
                     .id(),
             );
 
@@ -205,7 +210,7 @@ mod ui_components {
     pub struct TurnCounter;
 
     pub fn health_counter(parent: &mut ChildBuilder, max: usize) {
-        use crate::menu_core::nodes::general::*;
+        use bevy_ui_nodes::*;
         println!("HEALTH COUNTER");
         // Node, right aligned, with ui_images stacking right to left
         parent
@@ -252,7 +257,7 @@ mod ui_components {
     }
 
     pub fn power_charge_counter(parent: &mut ChildBuilder, max: usize) {
-        use crate::menu_core::nodes::general::*;
+        use bevy_ui_nodes::*;
         println!("POWER CHARGE COUNTER");
         // Node, right aligned, with ui_images stacking right to left
         parent
@@ -286,7 +291,7 @@ mod ui_components {
     }
 
     fn image_node(image_assets: &ImageAssetStore, asset: &ImageAsset) -> NodeBundle {
-        use crate::menu_core::nodes::general::*;
+        use bevy_ui_nodes::*;
         let properties = vec![
             Property::Colour(Color::WHITE),
             Property::Height(Val::Px(ICON_HEIGHT)),

@@ -61,7 +61,7 @@ impl ButtonComponent for NewGameButton {
     fn to_text(&self) -> &'static str {
         match self {
             Self::Back => "Back",
-            Self::NewGame => "New Game",
+            Self::NewGame => "Create New Profile",
         }
     }
 }

@@ -9,10 +9,11 @@ use crate::menu_core::menu_core;
 
 use crate::menu_core::menu_core::text::{standard_centred_text, TextNodes};
 use crate::menu_core::menu_core::{make_button, make_button_custom_size};
-use crate::menu_core::nodes;
 use crate::profiles::profiles::{
     HaddockVariant, LoadedUserProfile, LoadingProfileSlotNum, UserProfile,
 };
+use bevy_ui_nodes::HeightOrWidth::Height;
+use bevy_ui_nodes::{HeightOrWidth, Property};
 use std::time::Duration;
 
 pub struct MenuPlugin;
@@ -79,16 +80,20 @@ fn menu_setup(
 
     let mut text_input = None;
     commands
-        .spawn_bundle(nodes::general::new(nodes::general::defaults::full(
+        .spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::full(
             FlexDirection::Column,
-            Some(vec![nodes::general::Property::Image(
+            Some(vec![Property::Image(
                 image_assets.get(&ImageAsset::Background),
             )]),
         )))
         .insert(NewGameMenuOnly {})
         .with_children(|parent| {
             parent
-                .spawn_bundle(crate::menu_core::nodes::vertical::half())
+                .spawn_bundle(bevy_ui_nodes::default_node::half(
+                    HeightOrWidth::Height,
+                    FlexDirection::Column,
+                    None,
+                ))
                 .with_children(|parent| {
                     make_button(NewGameButton::Back, parent, font.clone());
                     make_button_custom_size(
@@ -99,8 +104,15 @@ fn menu_setup(
                     );
                 });
             parent
-                .spawn_bundle(crate::menu_core::nodes::vertical::half())
+                .spawn_bundle(bevy_ui_nodes::default_node::half(
+                    HeightOrWidth::Height,
+                    FlexDirection::Column,
+                    Some(vec![bevy_ui_nodes::Property::Justify(
+                        JustifyContent::Center,
+                    )]),
+                ))
                 .with_children(|parent| {
+                    standard_centred_text(parent, "Profile Name", font.clone());
                     text_input = Some(TextInput::create(parent, font.clone()));
                 });
         });
@@ -131,9 +143,13 @@ impl TextInput {
     fn create(parent: &mut ChildBuilder, font: Handle<Font>) -> Self {
         let mut text_nodes = None;
         parent
-            .spawn_bundle(crate::menu_core::nodes::horizontal::empty())
+            .spawn_bundle(bevy_ui_nodes::default_node::empty(
+                HeightOrWidth::Width,
+                FlexDirection::Row,
+                Some(vec![bevy_ui_nodes::Property::Colour(Color::GRAY)]),
+            ))
             .with_children(|parent| {
-                text_nodes = Some(standard_centred_text(parent, "|".into(), font));
+                text_nodes = Some(standard_centred_text(parent, "|", font));
             });
 
         let timer = Timer::new(Duration::from_millis(500), true);

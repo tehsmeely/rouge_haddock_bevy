@@ -183,10 +183,10 @@ struct OverlayView;
 
 fn base_view(parent: &mut ChildBuilder, font: Handle<Font>) {
     parent
-        .spawn_bundle(crate::menu_core::nodes::vertical::full())
+        .spawn_bundle(bevy_ui_nodes::default_node::full_vertical())
         .with_children(|parent| {
             parent
-                .spawn_bundle(crate::menu_core::nodes::horizontal::full())
+                .spawn_bundle(bevy_ui_nodes::default_node::full_horizontal())
                 .with_children(|parent| {
                     crate::menu_core::menu_core::make_button_custom_size(
                         UiOverlayButton::Abandon,
@@ -213,16 +213,16 @@ fn base_view(parent: &mut ChildBuilder, font: Handle<Font>) {
 
 fn help_view(parent: &mut ChildBuilder, font: Handle<Font>, image_store: &ImageAssetStore) {
     parent
-        .spawn_bundle(crate::menu_core::nodes::vertical::full())
+        .spawn_bundle(bevy_ui_nodes::default_node::full_vertical())
         .with_children(|parent| {
-            use crate::menu_core::nodes::general;
+            use bevy_ui_nodes;
             parent
-                .spawn_bundle(general::new(general::defaults::full(
+                .spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::full(
                     FlexDirection::Row,
                     Some(vec![
-                        general::Property::MarginAll(Val::Auto),
-                        general::Property::FlexGrow(0f32),
-                        general::Property::FlexBasis(Val::Px(1.0)),
+                        bevy_ui_nodes::Property::MarginAll(Val::Auto),
+                        bevy_ui_nodes::Property::FlexGrow(0f32),
+                        bevy_ui_nodes::Property::FlexBasis(Val::Px(1.0)),
                     ]),
                 )))
                 .with_children(|parent| {
@@ -234,17 +234,17 @@ fn help_view(parent: &mut ChildBuilder, font: Handle<Font>, image_store: &ImageA
                 });
 
             parent
-                .spawn_bundle(crate::menu_core::nodes::vertical::full())
+                .spawn_bundle(bevy_ui_nodes::default_node::full_vertical())
                 .with_children(|parent| {
-                    parent.spawn_bundle(general::new(general::defaults::full(
+                    parent.spawn_bundle(bevy_ui_nodes::new(bevy_ui_nodes::defaults::full(
                         FlexDirection::Column,
                         Some(vec![
-                            general::Property::Image(image_store.get(&ImageAsset::HelpCard)),
-                            general::Property::Colour(Color::WHITE),
-                            general::Property::MarginAll(Val::Px(0.0)),
-                            general::Property::AspectRatio(1.0),
-                            general::Property::Height(Val::Percent(100.0)),
-                            general::Property::Width(Val::Auto),
+                            bevy_ui_nodes::Property::Image(image_store.get(&ImageAsset::HelpCard)),
+                            bevy_ui_nodes::Property::Colour(Color::WHITE),
+                            bevy_ui_nodes::Property::MarginAll(Val::Px(0.0)),
+                            bevy_ui_nodes::Property::AspectRatio(1.0),
+                            bevy_ui_nodes::Property::Height(Val::Percent(100.0)),
+                            bevy_ui_nodes::Property::Width(Val::Auto),
                         ]),
                     )));
                 });

@@ -33,9 +33,10 @@ serde = "1.0.136"
 
 [dependencies.bevy_ui_nodes]
 path = "../bevy_ui_nodes"
+features = ["debug_ui_node_colours"]
 
 #Below re-implement as wasm32 only later ...
-#[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3.59", features = ["Storage", "Window"]}
 wasm-bindgen = "0.2.81"
 js-sys = "0.3.58"

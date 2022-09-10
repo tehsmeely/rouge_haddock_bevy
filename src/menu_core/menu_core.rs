@@ -126,7 +126,7 @@ pub mod text {
 
     pub fn standard_centred_text_custom(
         builder: &mut ChildBuilder,
-        text: String,
+        text: impl Into<String>,
         font: Handle<Font>,
         font_size: f32,
         color: Color,
@@ -176,7 +176,7 @@ pub mod text {
     }
     pub fn standard_centred_text(
         builder: &mut ChildBuilder,
-        text: String,
+        text: impl Into<String>,
         font: Handle<Font>,
     ) -> TextNodes {
         let font_size = 40.0;

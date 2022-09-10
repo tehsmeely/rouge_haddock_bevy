@@ -8,6 +8,7 @@ use crate::menu_core::menu_core::text::{standard_centred_text, standard_centred_
 use crate::menu_core::structure::SplitWay;
 use crate::profiles::profiles::{LoadedUserProfile, UserProfile};
 use bevy::prelude::{FlexDirection, JustifyContent};
+use bevy_ui_nodes::Property;
 
 pub struct MenuPlugin;
 
@@ -127,8 +128,11 @@ fn menu_setup(
     let mut display_text_shells = None;
     let mut display_text_stats = None;
     commands
-        .spawn_bundle(crate::menu_core::nodes::vertical::full_with_background(
-            image_asset_store.get(&ImageAsset::Background),
+        .spawn_bundle(bevy_ui_nodes::default_node::full(
+            FlexDirection::Column,
+            Some(vec![Property::Image(
+                image_asset_store.get(&ImageAsset::Background),
+            )]),
         ))
         .insert(StoreMenuOnly {})
         .with_children(|parent| {
@@ -179,7 +183,7 @@ fn menu_setup(
                                 |parent| {
                                     parent
                                         .spawn_bundle({
-                                            use crate::menu_core::nodes::general::*;
+                                            use bevy_ui_nodes::*;
                                             new(defaults::full(
                                                 FlexDirection::Column,
                                                 Some(vec![Property::Justify(

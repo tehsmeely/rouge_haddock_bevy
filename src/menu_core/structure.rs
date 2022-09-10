@@ -1,6 +1,6 @@
-use crate::menu_core::nodes::debug_get_colour;
 /// Another experimental interface for making notes
 use bevy::prelude::*;
+use bevy_ui_nodes::debug_get_colour;
 use std::ops::Not;
 
 #[cfg(debug_assertions)]
